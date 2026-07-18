@@ -1,0 +1,28 @@
+# Step 10 — Pilot & prove-value defaults (tune without code changes).
+# Used for accepted-action before/after windows and historical correlation.
+
+pilot:
+  # Revenue windows around accepted / done actions (resolved_at)
+  baseline_days: 30
+  followup_days: 30
+  # Minimum follow-up days before an outcome is considered measurable
+  min_followup_elapsed_days: 7
+  # Statuses that count as "acted on"
+  acted_statuses: [accepted, done]
+
+  # Historical month correlation: compare MoM lift when any high/medium
+  # priority action was accepted in the prior month vs dismissed/ignored.
+  correlation:
+    min_months: 2
+    high_priority_only: false  # if true, only priority=high counts as "acted"
+
+  # Suggested starting thresholds for Indian kirana / festival seasons.
+  # Copy overrides into insight-engine/config/rules.yaml after a pilot tune run.
+  suggested_festival_overrides:
+    festival_prep:
+      days_before_min: 7
+      days_before_max: 45
+      weight: 1.25
+    bundle:
+      min_lift: 1.15
+      min_confidence: 0.30

@@ -27,6 +27,7 @@ from cleaning.normalizer import clean_number
 from cleaning.product_matcher import ProductMatcher
 from cleaning.validators import validate_invoice, validate_line_item
 from db.models import Store, Customer, Invoice, InvoiceLineItem, IngestionError
+from db.phone import InvalidPhoneError, normalize_phone
 from db.session import get_session
 from pipeline.dedup import file_hash, is_duplicate_by_natural_key, is_duplicate_by_file_hash
 from pipeline.config_loader import load_thresholds
@@ -85,7 +86,36 @@ def _resolve_store(session, store_name: Optional[str]) -> Store:
     return store
 
 
-def _resolve_customer(session, customer_name: Optional[str]) -> Optional[Customer]:
+def _resolve_customer(
+    session,
+    customer_name: Optional[str],
+    customer_phone: Optional[str] = None,
+) -> Optional[Customer]:
+    """Resolve customer by normalized phone (preferred) or fall back to name."""
+    phone_norm = None
+    if customer_phone and str(customer_phone).strip():
+        try:
+            phone_norm = normalize_phone(customer_phone)
+        except InvalidPhoneError:
+            phone_norm = None
+
+    if phone_norm:
+        customer = session.query(Customer).filter_by(phone_normalized=phone_norm).first()
+        if customer:
+            if customer_name and customer_name.strip() and not customer.customer_name:
+                customer.customer_name = customer_name.strip()
+            customer.phone = str(customer_phone).strip()
+            session.flush()
+            return customer
+        customer = Customer(
+            customer_name=customer_name.strip() if customer_name else None,
+            phone=str(customer_phone).strip(),
+            phone_normalized=phone_norm,
+        )
+        session.add(customer)
+        session.flush()
+        return customer
+
     if not customer_name or not customer_name.strip():
         return None
     name = customer_name.strip()
@@ -170,9 +200,10 @@ def ingest_invoice(session, raw: RawInvoiceData, thresholds: dict) -> str:
         tax_pct = clean_number(li.tax_pct)
         line_total = clean_number(li.line_total)
 
-        errs = validate_line_item(li.product_name, qty, price)
+        display_name = li.product_name or li.sku or li.product_id or "(unknown)"
+        errs = validate_line_item(li.product_name or display_name, qty, price)
         if errs:
-            line_item_errors.append({"product_name": li.product_name, "errors": errs})
+            line_item_errors.append({"product_name": display_name, "errors": errs})
             continue  # skip this specific line item, don't kill the whole invoice
 
         if qty is not None and qty < 0:
@@ -180,7 +211,17 @@ def ingest_invoice(session, raw: RawInvoiceData, thresholds: dict) -> str:
         if price is not None and price < 0:
             negative_price_found = True
 
-        product, match_type = matcher.resolve(li.product_name, li.category)
+        try:
+            product, match_type = matcher.resolve_identity(
+                product_id=getattr(li, "product_id", None),
+                sku=getattr(li, "sku", None),
+                product_name=li.product_name,
+                category=li.category,
+            )
+        except ValueError as exc:
+            line_item_errors.append({"product_name": display_name, "errors": [str(exc)]})
+            continue
+
         if match_type == "ambiguous_new":
             _log_error(
                 session,
@@ -189,6 +230,13 @@ def ingest_invoice(session, raw: RawInvoiceData, thresholds: dict) -> str:
                 f"'{li.product_name}' matched no existing product with high confidence; created as new product '{product.product_name}' pending review.",
                 raw_payload={"raw_name": li.product_name},
             )
+
+        # Persist SKU / unit_cost from live POS payloads when provided
+        if getattr(li, "sku", None) and not product.sku:
+            product.sku = str(li.sku).strip()
+        unit_cost = clean_number(getattr(li, "unit_cost", None)) if getattr(li, "unit_cost", None) else None
+        if unit_cost is not None:
+            product.unit_cost = unit_cost
 
         if price is not None:
             is_outlier = _check_price_outlier(
@@ -215,6 +263,7 @@ def ingest_invoice(session, raw: RawInvoiceData, thresholds: dict) -> str:
                 discount_pct=discount_pct,
                 tax_pct=tax_pct,
                 line_total=line_total,
+                unit_cost=unit_cost,
             )
         )
 
@@ -244,7 +293,7 @@ def ingest_invoice(session, raw: RawInvoiceData, thresholds: dict) -> str:
         return "failed_validation"
 
     # --- Load: single transaction for invoice header + all line items ---
-    customer = _resolve_customer(session, raw.customer_name)
+    customer = _resolve_customer(session, raw.customer_name, getattr(raw, "customer_phone", None))
 
     subtotal = sum(li["quantity"] * li["unit_price"] for li in cleaned_line_items if li["quantity"] and li["unit_price"])
     grand_total = sum(li["line_total"] for li in cleaned_line_items if li["line_total"])

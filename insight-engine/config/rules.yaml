@@ -1,0 +1,123 @@
+# Step 6 — Insight Engine eligibility thresholds + scoring knobs.
+# Deterministic: same inputs + this file → same ranked actions.
+# Step 7 — optional feedback learning multiplies rule weights.
+
+learning:
+  enabled: true
+  # Beta prior; neutral useful/not → multiplier ≈ 1.0
+  prior_alpha: 2.0
+  prior_beta: 2.0
+  min_multiplier: 0.5
+  max_multiplier: 1.5
+
+scoring:
+  # score = impact_estimate_rupees * confidence * urgency * weight
+  # priority bands from score
+  priority_high_min: 5000
+  priority_medium_min: 1000
+  max_insights_per_store: 40
+  # replace previous "new" insights on each run (accepted/done/dismissed kept)
+  replace_status: new
+
+confidence_map:
+  high: 0.85
+  medium: 0.55
+  low: 0.30
+
+urgency_map:
+  high: 0.95
+  medium: 0.60
+  low: 0.35
+
+rules:
+  bundle:
+    enabled: true
+    min_confidence: 0.35
+    min_lift: 1.2
+    min_support: 0.01
+    # impact ≈ confidence * lift * assumed_basket_lift_rupees
+    assumed_basket_lift_rupees: 40
+    max_per_store: 8
+    weight: 1.0
+
+  stop_discount:
+    enabled: true
+    require_promo_floor: true
+    # only act when margin is unsafe OR classification is elastic
+    require_margin_unsafe_or_elastic: true
+    # impact ≈ assumed monthly over-discount waste
+    assumed_monthly_waste_rupees: 800
+    max_per_store: 6
+    weight: 1.1
+
+  reorder:
+    enabled: true
+    signal_types: [velocity_surge]
+    # impact ≈ recent velocity * 7 days * assumed unit revenue
+    assumed_unit_revenue: 50
+    days_horizon: 7
+    max_per_store: 6
+    weight: 1.2
+
+  clear_dead_stock:
+    enabled: true
+    signal_types: [dead_stock]
+    assumed_recovery_rupees: 500
+    max_per_store: 5
+    weight: 0.9
+
+  investigate_velocity:
+    enabled: true
+    signal_types: [velocity_drop]
+    assumed_monthly_loss_rupees: 600
+    max_per_store: 5
+    weight: 0.85
+
+  win_back:
+    enabled: true
+    segments: [dormant, at_risk]
+    min_customers: 3
+    # impact ≈ count * avg monetary share * reactivation rate
+    assumed_reactivation_rate: 0.08
+    max_per_store: 2
+    weight: 1.15
+
+  vip_nurture:
+    enabled: true
+    segments: [vip]
+    min_customers: 2
+    assumed_retention_lift_rupees_per_vip: 200
+    max_per_store: 1
+    weight: 1.0
+
+  festival_prep:
+    enabled: true
+    actions: [stock_up, offer]
+    min_lift: 1.15
+    # impact ≈ lift excess * assumed festival window revenue
+    assumed_window_revenue: 3000
+    max_per_store: 8
+    weight: 1.25
+
+  anomaly_review:
+    enabled: true
+    severities: [high, medium]
+    # impact ≈ |actual - expected|
+    max_per_store: 4
+    weight: 0.7
+
+  protect_a_sku:
+    enabled: true
+    product_class: A
+    # soft nudge when A-class has velocity_drop already covered elsewhere —
+    # only emit when no inventory signal exists for that product
+    assumed_monthly_risk_rupees: 1500
+    max_per_store: 3
+    weight: 0.75
+
+conflicts:
+  # If both fire for the same product, keep the higher-scoring one.
+  product_mutex_pairs:
+    - [stop_discount, reorder]
+    - [clear_dead_stock, reorder]
+    - [clear_dead_stock, festival_prep]

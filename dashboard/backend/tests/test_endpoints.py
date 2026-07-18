@@ -17,9 +17,10 @@ from fastapi.testclient import TestClient
 def test_app(monkeypatch, tmp_path):
     db_path = tmp_path / "test_dashboard.db"
     monkeypatch.setenv("INVOICE_DB_URL", f"sqlite:///{db_path}")
+    _repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     monkeypatch.setenv("INVOICE_PIPELINE_ROOT", os.environ.get(
         "INVOICE_PIPELINE_ROOT",
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "invoice-pipeline"),
+        os.path.join(_repo, "invoice-pipeline"),
     ))
 
     pipeline_root = os.environ["INVOICE_PIPELINE_ROOT"]

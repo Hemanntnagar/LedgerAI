@@ -1,10 +1,9 @@
 """
-Runs anomaly detection at both the per-(store, product) level and the
-store-aggregate level, writing flagged anomalies to the anomalies table.
+Anomaly detection with optional store_id scope (Step 5).
 """
 import logging
 
-from common.data_loaders import get_session, Base, engine, load_daily_product_sales, Store
+from common.data_loaders import get_session, Base, engine, load_daily_product_sales
 from common.result_models import Anomaly
 from anomaly_detection.model import detect_anomalies
 
@@ -12,23 +11,25 @@ logger = logging.getLogger("anomaly_detection.job")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-def run_anomaly_detection_job() -> dict:
+def run_anomaly_detection_job(store_id: str = None) -> dict:
     Base.metadata.create_all(bind=engine)
     session = get_session()
-    summary = {"product_level_anomalies": 0, "store_level_anomalies": 0}
+    summary = {"product_level_anomalies": 0, "store_level_anomalies": 0, "store_id": store_id}
 
     try:
-        session.query(Anomaly).delete()
+        q = session.query(Anomaly)
+        if store_id:
+            q = q.filter(Anomaly.store_id == store_id)
+        q.delete()
         session.commit()
 
-        all_sales = load_daily_product_sales(session)
+        all_sales = load_daily_product_sales(session, store_id=store_id)
         if all_sales.empty:
             logger.warning("No sales data found")
             return summary
 
-        # Product-level anomalies
         groups = all_sales.groupby(["store_id", "product_id"])
-        for (store_id, product_id), group in groups:
+        for (sid, product_id), group in groups:
             daily_series = (
                 group.groupby("date", as_index=False)
                 .agg(revenue=("revenue", "sum"))
@@ -37,7 +38,7 @@ def run_anomaly_detection_job() -> dict:
             anomalies = detect_anomalies(daily_series, value_col="revenue")
             for _, row in anomalies.iterrows():
                 session.add(Anomaly(
-                    store_id=store_id, product_id=product_id,
+                    store_id=sid, product_id=product_id,
                     anomaly_date=row["date"].date(), metric="revenue",
                     actual_value=round(row["revenue"], 2),
                     expected_value=round(row["expected_value"], 2),
@@ -47,17 +48,16 @@ def run_anomaly_detection_job() -> dict:
                 summary["product_level_anomalies"] += 1
         session.commit()
 
-        # Store-level anomalies (aggregate across all products per store)
         store_daily = (
             all_sales.groupby(["store_id", "date"], as_index=False)
             .agg(revenue=("revenue", "sum"))
         )
-        for store_id, group in store_daily.groupby("store_id"):
+        for sid, group in store_daily.groupby("store_id"):
             daily_series = group.sort_values("date")
             anomalies = detect_anomalies(daily_series, value_col="revenue")
             for _, row in anomalies.iterrows():
                 session.add(Anomaly(
-                    store_id=store_id, product_id=None,
+                    store_id=sid, product_id=None,
                     anomaly_date=row["date"].date(), metric="revenue",
                     actual_value=round(row["revenue"], 2),
                     expected_value=round(row["expected_value"], 2),

@@ -1,10 +1,17 @@
 forecasting:
   horizon_days: 30
   min_history_days_for_prophet: 30   # below this, fall back to naive/moving-average forecast
+  grain: weekly                       # daily | weekly (weekly smooths noisy day-level demand)
+  backtest_horizon_days: 14
+  # MAPE → confidence (Step 5 fix): previously always "high" when Prophet ran
+  mape_high_max_pct: 25               # MAPE ≤ this → high
+  mape_medium_max_pct: 40             # MAPE ≤ this → medium; above → low
+  assume_margin_pct: 25               # used by what-if / margin-safe pricing when unit_cost missing
 
 basket_analysis:
   min_support: 0.01
   min_lift: 1.0
+  top_n_suggestions: 20               # checkout add-on / bundle templates to persist
 
 abc_classification:
   period_days: 90
@@ -14,7 +21,37 @@ abc_classification:
 elasticity:
   min_price_points_required: 4   # need at least this many distinct price points to estimate elasticity
   elastic_threshold: -1.0         # coefficient below this = 'elastic'
+  assume_margin_pct: 25           # flag promo as unsafe if discount would erase this margin
+  promo_floor_drop_pct: 15        # price ≥ this % below median → promo_floor candidate
 
 anomaly_detection:
   z_score_threshold: 2.5
   min_history_days: 14   # need at least this many days of history to compute a meaningful baseline
+
+# Step 5 — new / expanded modules
+customer_targeting:
+  lookback_days: 365
+  dormant_days: 60            # no visit in N days → dormant
+  vip_top_pct: 10             # top N% by monetary → VIP
+  churn_risk_days: 90         # expected return window for churn score
+  min_invoices_for_nbo: 2     # need this many baskets for next-best-offer
+
+inventory:
+  dead_stock_days: 45         # no sales in N days → dead_stock
+  velocity_window_days: 14
+  velocity_baseline_days: 56
+  velocity_drop_pct: 40       # recent velocity < baseline by this % → alert
+
+timing:
+  promo_lift_min: 1.15        # festival/promo day revenue vs baseline
+  peak_hour_share_min: 0.12   # hour must carry ≥12% of revenue to flag peak staffing
+
+store_benchmarking:
+  min_peer_stores: 2
+  underperform_pct: 20        # ≥20% below peer median revenue/txn → underperformer
+
+festival:
+  pre_window_days: 14         # stock-up window before festival start
+  baseline_days: 28           # non-festival baseline for lift
+  min_lift: 1.15              # product must lift ≥15% vs baseline to recommend stock-up
+  top_n_products: 10

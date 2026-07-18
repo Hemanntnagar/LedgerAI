@@ -24,6 +24,35 @@ class ProductMatcher:
         self.auto_match_score = thresholds["fuzzy_match_min_score"]
         self.review_band_score = thresholds["review_band_min_score"]
 
+    def resolve_identity(
+        self,
+        *,
+        product_id: Optional[str] = None,
+        sku: Optional[str] = None,
+        product_name: Optional[str] = None,
+        category: Optional[str] = None,
+    ) -> Tuple[Product, str]:
+        """Resolve by product_id / sku first, then fall back to name matching."""
+        if product_id:
+            product = self.session.query(Product).filter_by(product_id=product_id).first()
+            if product:
+                return product, "by_id"
+        sku_clean = str(sku).strip() if sku and str(sku).strip() else None
+        if sku_clean:
+            product = self.session.query(Product).filter_by(sku=sku_clean).first()
+            if product:
+                return product, "by_sku"
+        if product_name and str(product_name).strip():
+            product, match_type = self.resolve(str(product_name), category)
+            if sku_clean and not product.sku:
+                product.sku = sku_clean
+            return product, match_type
+        if sku_clean:
+            product = self._create_product(sku_clean, category)
+            product.sku = sku_clean
+            return product, "new_product_sku"
+        raise ValueError("line item needs product_id, sku, or product_name")
+
     def resolve(self, raw_name: str, category: Optional[str] = None) -> Tuple[Product, str]:
         """Returns (product, match_type) where match_type is one of:
         'exact_alias', 'fuzzy_auto', 'ambiguous_new', 'new_product'."""

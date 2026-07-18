@@ -1,12 +1,11 @@
 """
 ABC classification: ranks products by revenue over a trailing period and
-classifies into A (top revenue drivers) / B (moderate) / C (long tail)
-based on cumulative revenue share. Deterministic ranking, no ML model.
+classifies into A / B / C. Supports optional store_id scope (Step 5).
 """
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
-from common.data_loaders import get_session, Base, engine, Store, InvoiceLineItem, Invoice, Product
+from common.data_loaders import get_session, Base, engine, list_stores, InvoiceLineItem, Invoice, Product
 from common.result_models import ABCClassification
 from common.config import load_config
 from sqlalchemy import func
@@ -52,36 +51,41 @@ def _classify_products(session, store_id, period_start, period_end, config):
     return results
 
 
-def run_abc_classification_job() -> dict:
+def run_abc_classification_job(store_id: str = None) -> dict:
     Base.metadata.create_all(bind=engine)
     config = load_config()["abc_classification"]
     session = get_session()
-    summary = {"global": {"A": 0, "B": 0, "C": 0}, "per_store": {}}
+    summary = {"global": {"A": 0, "B": 0, "C": 0}, "per_store": {}, "store_id": store_id}
 
     try:
-        session.query(ABCClassification).delete()
+        q = session.query(ABCClassification)
+        if store_id:
+            q = q.filter(ABCClassification.store_id == store_id)
+        q.delete()
         session.commit()
 
-        period_end = session.query(func.max(Invoice.invoice_date)).scalar()
+        period_end = session.query(func.max(Invoice.invoice_date))
+        if store_id:
+            period_end = period_end.filter(Invoice.store_id == store_id)
+        period_end = period_end.scalar()
         if not period_end:
             logger.warning("No invoice data found")
             return summary
         period_start = period_end - timedelta(days=config["period_days"])
 
-        # Global classification (store_id=None)
-        results = _classify_products(session, None, period_start, period_end, config)
-        for r in results:
-            session.add(ABCClassification(
-                store_id=None, product_id=r["product_id"],
-                period_start=period_start, period_end=period_end,
-                revenue_rank=r["revenue_rank"], cumulative_pct=r["cumulative_pct"],
-                product_class=r["product_class"],
-            ))
-            summary["global"][r["product_class"]] += 1
-        session.commit()
+        if not store_id:
+            results = _classify_products(session, None, period_start, period_end, config)
+            for r in results:
+                session.add(ABCClassification(
+                    store_id=None, product_id=r["product_id"],
+                    period_start=period_start, period_end=period_end,
+                    revenue_rank=r["revenue_rank"], cumulative_pct=r["cumulative_pct"],
+                    product_class=r["product_class"],
+                ))
+                summary["global"][r["product_class"]] += 1
+            session.commit()
 
-        # Per-store classification
-        stores = session.query(Store).all()
+        stores = list_stores(session, store_id=store_id)
         for store in stores:
             store_results = _classify_products(session, store.store_id, period_start, period_end, config)
             counts = {"A": 0, "B": 0, "C": 0}

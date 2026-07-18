@@ -1,0 +1,29 @@
+# Step 9 — Automation & monitoring thresholds (tune without code changes).
+
+scheduler:
+  # Used by APScheduler when ENABLE_SCHEDULER=1 on the dashboard API.
+  cron_hour: 2
+  cron_minute: 0
+  timezone: Asia/Kolkata
+
+mape:
+  # Alert when average backtest MAPE exceeds this (absolute).
+  avg_max_pct: 40
+  # Alert when avg MAPE worsens by this many percentage points vs prior snapshot.
+  drift_pct_points: 15
+  # Alert when share of low-confidence forecast rows exceeds this (0–1).
+  low_confidence_share_max: 0.6
+  # Need at least this many MAPE samples before alerting.
+  min_rows_with_mape: 3
+
+ingestion:
+  window_hours: 24
+  # error_rate = errors / (errors + successful invoices) in the window.
+  error_rate_max: 0.15
+  # Absolute error count floor (even if rate is high on tiny samples).
+  min_errors_to_alert: 5
+  min_events: 5
+
+jobs:
+  # Keep the last N job_runs per store+type when pruning (optional CLI).
+  retain_per_store: 90

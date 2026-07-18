@@ -1,0 +1,36 @@
+# Step 4 — phone-based loyalty rules (tune without code changes).
+# Tiers: bronze (Regular) → silver (Loyal) → gold (VIP).
+
+points:
+  rupees_per_point: 10          # ₹10 spent → 1 point (floor)
+  festival_multiplier: 2.0      # active festival window → 2× points
+  min_invoice_amount: 0         # invoices below this earn nothing
+
+tiers:
+  # Highest matching tier wins (lifetime spend OR visit count).
+  bronze:
+    min_lifetime_spend: 0
+    min_visits: 0
+  silver:
+    min_lifetime_spend: 5000
+    min_visits: 5
+  gold:
+    min_lifetime_spend: 20000
+    min_visits: 15
+
+rewards:
+  - code: DISCOUNT5
+    type: discount_pct
+    title: "5% off next bill"
+    points_cost: 100
+    discount_pct: 5
+  - code: FREE_ADDON
+    type: free_addon
+    title: "Free add-on (₹50 cap)"
+    points_cost: 150
+    value_cap: 50
+  - code: FESTIVAL10
+    type: festival_coupon
+    title: "Festival coupon 10% off"
+    points_cost: 200
+    discount_pct: 10

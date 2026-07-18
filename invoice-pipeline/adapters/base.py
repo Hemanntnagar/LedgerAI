@@ -11,13 +11,16 @@ from pydantic import BaseModel, Field
 
 
 class RawLineItem(BaseModel):
-    product_name: str
+    product_name: Optional[str] = None
+    product_id: Optional[str] = None
+    sku: Optional[str] = None
     category: Optional[str] = None
     quantity: Optional[str] = None      # kept as raw string; parsed/cleaned downstream
     unit_price: Optional[str] = None
     discount_pct: Optional[str] = None
     tax_pct: Optional[str] = None
     line_total: Optional[str] = None
+    unit_cost: Optional[str] = None
 
 
 class RawInvoiceData(BaseModel):
@@ -26,10 +29,12 @@ class RawInvoiceData(BaseModel):
     invoice_date: Optional[str] = None
     invoice_time: Optional[str] = None
     customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None  # loyalty identity (normalize at load)
     payment_method: Optional[str] = None
+    offer_codes: List[str] = Field(default_factory=list)
     line_items: List[RawLineItem] = Field(default_factory=list)
     raw_totals: Optional[dict] = None
-    source_type: str                    # 'csv' | 'pdf' | 'ocr_image'
+    source_type: str                    # 'csv' | 'pdf' | 'ocr_image' | 'api'
     source_file_path: str
     confidence: Optional[float] = None  # populated by OCR adapter; None otherwise
 
