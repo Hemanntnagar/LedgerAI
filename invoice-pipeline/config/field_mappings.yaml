@@ -1,0 +1,34 @@
+# Maps raw column names (as they appear in a source file) to our canonical
+# intermediate field names. Add a new block here to support a new POS/ERP
+# export format WITHOUT touching adapter code.
+
+default:
+  invoice_number: ["invoice_number", "invoice_no", "invoice no", "InvoiceNo", "Invoice #", "bill_no"]
+  invoice_date: ["invoice_date", "date", "Date", "Bill Date"]
+  invoice_time: ["invoice_time", "time", "Time"]
+  store_name: ["store_name", "store", "Store", "branch"]
+  customer_name: ["customer_name", "customer", "Customer"]
+  payment_method: ["payment_method", "payment", "Payment Mode"]
+  product_name: ["product_name", "item", "Item Name", "product", "Item"]
+  category: ["category", "Category"]
+  quantity: ["quantity", "qty", "Qty"]
+  unit_price: ["unit_price", "price", "Price", "Rate"]
+  discount_pct: ["discount_pct", "discount", "Discount %"]
+  tax_pct: ["tax_pct", "tax", "Tax %", "GST %"]
+  line_total: ["line_total", "amount", "Amount", "Total"]
+
+# Example: a second named format, e.g. exported from "QuickPOS"
+quickpos:
+  invoice_number: ["Bill Number"]
+  invoice_date: ["Bill Date"]
+  invoice_time: ["Bill Time"]
+  store_name: ["Outlet"]
+  customer_name: ["Cust Name"]
+  payment_method: ["Mode"]
+  product_name: ["Product"]
+  category: ["Dept"]
+  quantity: ["Qty"]
+  unit_price: ["MRP"]
+  discount_pct: ["Disc%"]
+  tax_pct: ["GST%"]
+  line_total: ["Net Amt"]

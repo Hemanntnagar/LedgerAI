@@ -1,0 +1,13 @@
+Invoice No,Date,Store,Item,Qty,Price,Discount %,Tax %,Amount
+INV-1001,2026-05-01,Downtown Mart,Basmati Rice 5kg,2,450,0,5,900
+INV-1001,2026-05-01,Downtown Mart,Cooking Oil 1L,3,180,5,5,513
+INV-1001,2026-05-01,Downtown Mart,Sugar 1kg,1,55,0,5,55
+INV-1002,2026-05-01,Downtown Mart,Basmati rice 5 kg,1,450,0,5,450
+INV-1002,2026-05-01,Downtown Mart,Toor Dal 1kg,2,140,0,5,280
+INV-1003,2026-05-02,Downtown Mart,Cooking Oil 1L,2,180,0,5,360
+INV-1003,2026-05-02,Downtown Mart,Basmati Rice 5kg,1,460,0,5,460
+INV-1004,2026-05-02,Uptown Mart,Sugar 1kg,5,55,10,5,247.5
+INV-1004,2026-05-02,Uptown Mart,Toor Dal 1kg,3,140,0,5,420
+INV-1005,2026-05-03,Uptown Mart,Basmati Rice 5kg,2,450,0,5,900
+INV-1006,2026-05-03,Downtown Mart,Cooking Oil 1L,-1,180,0,5,-180
+INV-1007,2026-05-04,Downtown Mart,,2,100,0,5,200

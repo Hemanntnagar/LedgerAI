@@ -1,0 +1,20 @@
+forecasting:
+  horizon_days: 30
+  min_history_days_for_prophet: 30   # below this, fall back to naive/moving-average forecast
+
+basket_analysis:
+  min_support: 0.01
+  min_lift: 1.0
+
+abc_classification:
+  period_days: 90
+  class_a_cutoff_pct: 70   # cumulative % up to which products are class A
+  class_b_cutoff_pct: 90   # cumulative % up to which products are class B (rest = C)
+
+elasticity:
+  min_price_points_required: 4   # need at least this many distinct price points to estimate elasticity
+  elastic_threshold: -1.0         # coefficient below this = 'elastic'
+
+anomaly_detection:
+  z_score_threshold: 2.5
+  min_history_days: 14   # need at least this many days of history to compute a meaningful baseline

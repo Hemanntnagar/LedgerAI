@@ -1,0 +1,24 @@
+# Configurable thresholds for the cleaning/validation stage.
+# Tune these instead of touching code.
+
+product_matching:
+  fuzzy_match_min_score: 90     # rapidfuzz score (0-100) above which we auto-map
+                                 # a raw product name to an existing canonical product
+  review_band_min_score: 75     # scores between this and fuzzy_match_min_score are
+                                 # logged as "ambiguous_match" for manual review,
+                                 # rather than auto-resolved
+
+outlier_detection:
+  price_zscore_threshold: 3.0    # flag as outlier if unit_price is this many std devs
+                                  # from that product's historical average
+  quantity_max_sane: 10000        # hard sanity cap; anything above is a parse error,
+                                  # not a real transaction
+
+validation:
+  min_line_items_per_invoice: 1
+  allow_negative_quantity: false
+  allow_negative_price: false
+
+ocr:
+  min_confidence_accept: 60      # OCR word-confidence average below this -> flagged
+                                  # for manual review rather than auto-ingested
