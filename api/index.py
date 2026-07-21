@@ -1,9 +1,8 @@
 """
 Vercel FastAPI entrypoint for Ledger.
 
-Zero env required: deploy/vercel_bootstrap copies the bundled demo SQLite
-to /tmp before SQLAlchemy starts. Vercel looks for a top-level `app` here.
-Static UI is served from public/ (synced from dashboard/frontend at build).
+Vercel looks for a top-level `app` in api/index.py.
+Static UI is served from public/ (copied from dashboard/frontend at build).
 """
 from __future__ import annotations
 

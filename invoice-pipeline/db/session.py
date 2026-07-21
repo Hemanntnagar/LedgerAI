@@ -15,17 +15,6 @@ from db.models import Base
 
 DB_URL = os.environ.get("INVOICE_DB_URL", "sqlite:///./invoice_pipeline.db")
 
-# Vercel / Lambda project FS is read-only — never open a relative sqlite path there.
-if (
-    (os.environ.get("VERCEL") or os.environ.get("LEDGER_SERVERLESS"))
-    and DB_URL.startswith("sqlite:")
-    and ":///" in DB_URL
-):
-    _path = DB_URL.split("sqlite:///", 1)[-1]
-    if _path and not _path.startswith(("/tmp", "tmp/")):
-        DB_URL = "sqlite:////tmp/ledger_demo.db"
-        os.environ["INVOICE_DB_URL"] = DB_URL
-
 # check_same_thread only needed for SQLite
 connect_args = {"check_same_thread": False} if DB_URL.startswith("sqlite") else {}
 engine = create_engine(DB_URL, connect_args=connect_args)
