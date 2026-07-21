@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ledger — Store App</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0b0f14">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b0f14;
+    --ink-soft: #1a222d;
+    --paper: #e8ecf1;
+    --paper-deep: #dde3ea;
+    --surface: #f7f9fb;
+    --surface-2: #ffffff;
+    --line: #c8d0db;
+    --line-soft: #d8dee7;
+    --muted: #5a6574;
+    --mint: #12b886;
+    --mint-dim: #d3f5e8;
+    --mint-ink: #0a7a58;
+    --signal: #f0a202;
+    --signal-dim: #fcebcc;
+    --danger: #e03131;
+    --danger-dim: #fadada;
+    --shadow: 0 1px 0 rgba(11,15,20,0.04), 0 8px 24px rgba(11,15,20,0.06);
+    --shadow-lg: 0 12px 40px rgba(11,15,20,0.18);
+    --r: 8px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --font: 'Figtree', system-ui, sans-serif;
+    --display: 'Syne', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.45;
+    background:
+      radial-gradient(900px 480px at 8% -10%, rgba(18,184,134,0.10), transparent 55%),
+      radial-gradient(700px 420px at 100% 0%, rgba(26,34,45,0.06), transparent 50%),
+      linear-gradient(180deg, var(--paper) 0%, var(--paper-deep) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  h1, h2, h3, .brand { font-family: var(--display); letter-spacing: -0.03em; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  button, input, select { font: inherit; }
+  :focus-visible {
+    outline: 2px solid var(--mint);
+    outline-offset: 2px;
+  }
+  ::selection { background: rgba(18,184,134,0.22); }
+
+  .shell { position: relative; z-index: 1; min-height: 100vh; }
+  .brand { font-size: 1.35rem; font-weight: 800; margin: 0; }
+
+  /* —— Chrome —— */
+  .topbar {
+    position: sticky; top: 0; z-index: 90;
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 24px 12px 76px;
+    background: rgba(247,249,251,0.82);
+    backdrop-filter: blur(12px) saturate(1.2);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .topbar-brand {
+    font-family: var(--display); font-weight: 800; font-size: 18px;
+    letter-spacing: -0.03em; color: var(--ink);
+  }
+  .topbar-brand span { color: var(--mint); }
+  .topbar-meta {
+    margin-left: auto; text-align: right; font-size: 12px; color: var(--muted);
+  }
+  .topbar-meta strong { color: var(--ink); font-weight: 600; display: block; font-size: 13px; }
+
+  .nav-menu { position: fixed; top: 10px; left: 14px; z-index: 100; }
+  .nav-trigger {
+    position: relative; z-index: 2;
+    width: 42px; height: 42px; border-radius: var(--r);
+    background: var(--ink); color: #e8ecf1;
+    border: 1px solid transparent; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    box-shadow: var(--shadow);
+    transition: background 0.2s var(--ease), transform 0.2s var(--ease), border-color 0.2s;
+  }
+  .nav-trigger:hover, .nav-menu.open .nav-trigger {
+    background: var(--ink-soft); transform: translateY(-1px);
+  }
+  .nav-trigger span {
+    display: block; width: 16px; height: 1.5px; background: currentColor;
+    transition: transform 0.22s var(--ease), opacity 0.18s;
+  }
+  .nav-menu.open .nav-trigger span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+  .nav-menu.open .nav-trigger span:nth-child(2) { opacity: 0; }
+  .nav-menu.open .nav-trigger span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+  .nav-panel {
+    position: absolute; top: 0; left: 0;
+    width: 248px; padding: 58px 10px 14px;
+    background: var(--ink); color: #e8ecf1;
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translateY(-6px) scale(0.97);
+    transform-origin: top left;
+    transition: opacity 0.18s var(--ease), transform 0.18s var(--ease), visibility 0.18s;
+  }
+  .nav-menu.open .nav-panel {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transform: translateY(0) scale(1);
+  }
+  .nav-brand {
+    font-family: var(--display); font-size: 16px; font-weight: 800;
+    letter-spacing: -0.03em; padding: 0 10px 2px; color: #fff;
+  }
+  .nav-brand-sub {
+    font-size: 10px; color: #7a8696; padding: 0 10px 14px;
+    letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600;
+  }
+  .nav-item {
+    padding: 10px 12px; border-radius: 6px; margin-bottom: 2px;
+    font-size: 13.5px; font-weight: 500; color: #a8b2c0; cursor: pointer;
+    border: none; background: transparent; width: 100%; text-align: left;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  .nav-item.active {
+    background: rgba(18,184,134,0.12); color: #fff;
+    box-shadow: inset 2px 0 0 var(--mint);
+  }
+  .nav-foot { margin-top: 10px; padding-top: 12px; border-top: 1px solid #2a3340; }
+  .nav-user { font-size: 12px; color: #7a8696; margin-bottom: 8px; padding: 0 4px; }
+  .nav-user strong { color: #fff; display: block; font-size: 13px; font-weight: 600; }
+  .link-btn {
+    background: transparent; border: 1px solid #3a4554; color: #a8b2c0;
+    border-radius: 6px; padding: 7px 10px; font-size: 12px; font-weight: 600;
+    cursor: pointer; width: 100%; transition: border-color 0.15s, color 0.15s;
+  }
+  .link-btn:hover { border-color: var(--mint); color: #fff; }
+
+  .main { position: relative; z-index: 1; padding: 28px 32px 72px; max-width: 1240px; }
+  .view { display: none; }
+  .view.active {
+    display: block;
+    animation: rise 0.35s var(--ease);
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+  .view-title {
+    margin: 0 0 6px; font-size: clamp(1.5rem, 2.4vw, 1.85rem); font-weight: 800;
+  }
+  .view-sub {
+    margin: 0 0 22px; color: var(--muted); font-size: 14px; max-width: 52ch; line-height: 1.5;
+  }
+
+  .filterbar {
+    display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 14px 16px; margin-bottom: 22px;
+    box-shadow: var(--shadow);
+  }
+  .filterbar label, .field label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); display: block; margin-bottom: 5px; font-weight: 600;
+  }
+  .filterbar input, .filterbar select, .field input, .field select {
+    font-family: var(--mono); font-size: 12.5px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px;
+    background: var(--surface); color: var(--ink);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .filterbar input:hover, .filterbar select:hover, .field input:hover, .field select:hover {
+    border-color: #9aa8b8;
+  }
+  .filterbar input:focus, .filterbar select:focus, .field input:focus, .field select:focus {
+    border-color: var(--mint); box-shadow: 0 0 0 3px rgba(18,184,134,0.18); outline: none;
+  }
+
+  .btn {
+    font-family: var(--font); font-weight: 600; font-size: 13px;
+    background: var(--ink); color: #f0f3f7; border: 1px solid var(--ink);
+    border-radius: 6px; padding: 8px 16px; cursor: pointer;
+    transition: transform 0.15s var(--ease), background 0.15s, box-shadow 0.15s;
+  }
+  .btn:hover { background: var(--ink-soft); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+  .btn.secondary {
+    background: var(--surface-2); color: var(--ink); border-color: var(--line);
+  }
+  .btn.secondary:hover { border-color: #9aa8b8; background: var(--surface); }
+  .btn.teal { background: var(--mint-ink); border-color: var(--mint-ink); color: #fff; }
+  .btn.teal:hover { background: #096348; }
+  .btn.amber { background: #c48400; border-color: #c48400; color: #fff; }
+  .btn.amber:hover { background: #a87000; }
+  .btn.sm, .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .last-updated {
+    margin-left: auto; font-size: 11.5px; color: var(--muted);
+    align-self: flex-end; font-family: var(--mono);
+  }
+
+  .period-toggle {
+    display: inline-flex; border: 1px solid var(--line); border-radius: 6px;
+    overflow: hidden; background: var(--surface);
+  }
+  .period-toggle button {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500; border: none;
+    background: transparent; color: var(--muted); padding: 6px 12px; cursor: pointer;
+    border-right: 1px solid var(--line); transition: background 0.15s, color 0.15s;
+  }
+  .period-toggle button:last-child { border-right: none; }
+  .period-toggle button:hover { color: var(--ink); }
+  .period-toggle button.active { background: var(--ink); color: #fff; }
+
+  .kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px;
+  }
+  .kpi-card {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 16px 18px; position: relative; overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: border-color 0.2s, transform 0.2s var(--ease);
+  }
+  .kpi-card:hover { border-color: #aeb8c6; transform: translateY(-1px); }
+  .kpi-card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--mint), #0a7a58);
+  }
+  .kpi-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--muted); margin-bottom: 8px; font-weight: 600;
+  }
+  .kpi-value { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+  .kpi-change { font-size: 12px; margin-top: 8px; font-weight: 600; }
+  .kpi-change.up { color: var(--mint-ink); }
+  .kpi-change.down { color: var(--danger); }
+  .kpi-change.flat { color: var(--muted); }
+
+  .panel-grid { display: grid; gap: 14px; margin-bottom: 14px; }
+  .panel-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .panel {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .panel h3, .panel h4 {
+    margin: 0 0 4px; font-size: 15px; font-family: var(--display); font-weight: 700;
+  }
+  .subtitle { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .panel-head {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 12px; margin-bottom: 4px;
+  }
+  .panel-head h3 { margin: 0; }
+  .source-tag {
+    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--muted); margin-left: 8px; font-weight: 500;
+  }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-wrap.tall { height: 280px; }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th {
+    text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); padding: 10px 8px; border-bottom: 1px solid var(--line);
+    font-weight: 600; background: var(--surface);
+  }
+  .data-table td {
+    padding: 11px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top;
+  }
+  .data-table tbody tr { transition: background 0.12s; }
+  .data-table tbody tr:hover { background: rgba(18,184,134,0.04); }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  .heatmap-grid {
+    display: grid; grid-template-columns: 36px repeat(24, 1fr); gap: 2px; font-size: 10px;
+  }
+  .heatmap-cell {
+    aspect-ratio: 1; border-radius: 2px; min-height: 10px;
+    transition: transform 0.12s;
+  }
+  .heatmap-cell:hover { transform: scale(1.35); z-index: 1; outline: 1px solid var(--ink); }
+  .row-label {
+    display: flex; align-items: center; color: var(--muted);
+    font-size: 10px; font-family: var(--mono);
+  }
+
+  .pareto-callout {
+    display: inline-block; margin-top: 12px; padding: 7px 11px;
+    background: var(--signal-dim); color: #8a5a00; border-radius: 6px;
+    font-size: 12.5px; font-weight: 600; border: 1px solid #f0d89a;
+  }
+
+  .action-card {
+    border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px;
+    margin-bottom: 10px; background: var(--surface-2);
+    border-left: 3px solid var(--line);
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s, transform 0.15s var(--ease);
+  }
+  .action-card:hover { transform: translateY(-1px); border-color: #aeb8c6; }
+  .action-card.high { border-left-color: var(--danger); }
+  .action-card.medium { border-left-color: var(--signal); }
+  .action-card.low { border-left-color: var(--mint); }
+  .action-meta {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 10px; font-size: 11px; color: var(--muted);
+  }
+  .badge {
+    display: inline-block; padding: 2px 7px; border-radius: 4px;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+  }
+  .badge.high { background: var(--danger-dim); color: var(--danger); }
+  .badge.medium { background: var(--signal-dim); color: #8a5a00; }
+  .badge.low { background: var(--mint-dim); color: var(--mint-ink); }
+  .badge.neutral { background: var(--paper); color: var(--muted); border: 1px solid var(--line-soft); }
+  .action-title { font-size: 15px; font-weight: 700; margin: 0 0 6px; font-family: var(--display); }
+  .action-body { color: var(--muted); font-size: 13.5px; margin: 0 0 14px; line-height: 1.5; }
+  .action-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab {
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--muted);
+    border-radius: 6px; padding: 7px 12px; font-size: 12.5px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .tab:hover { color: var(--ink); border-color: #9aa8b8; }
+  .tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+  .field { margin-bottom: 14px; }
+  .field input, .field select { width: 100%; max-width: 320px; }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .flash {
+    padding: 11px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px;
+    background: var(--mint-dim); color: var(--mint-ink); border: 1px solid #9edfc8;
+  }
+  .flash.warn { background: var(--signal-dim); color: #8a5a00; border-color: #f0d89a; }
+  .flash.err { background: var(--danger-dim); color: var(--danger); border-color: #f0b0b0; }
+  .mono-box {
+    font-family: var(--mono); background: var(--ink); color: #c8d4e0;
+    padding: 12px 14px; border-radius: 6px; font-size: 12px; word-break: break-all;
+    margin: 10px 0; border: 1px solid #2a3340;
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line-soft);
+    border-radius: 6px; padding: 12px 14px;
+  }
+  .stat .lbl {
+    font-size: 10.5px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em; font-weight: 600;
+  }
+  .stat .val {
+    font-size: 1.15rem; font-weight: 700; margin-top: 4px;
+    font-family: var(--display); letter-spacing: -0.02em;
+  }
+
+  .insight-list { list-style: none; margin: 0; padding: 0; }
+  .insight-list li {
+    padding: 10px 0; border-bottom: 1px solid var(--line-soft);
+    font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap;
+    align-items: center; gap: 8px;
+  }
+  .insight-list li:last-child { border-bottom: none; }
+
+  .empty-state {
+    color: var(--muted); font-size: 13.5px; text-align: center;
+    padding: 48px 24px; border: 1px dashed var(--line); border-radius: var(--r);
+    background: rgba(255,255,255,0.35);
+  }
+  .loading-skel {
+    background: linear-gradient(90deg, var(--paper) 25%, #f4f6f8 37%, var(--paper) 63%);
+    background-size: 400% 100%; animation: shimmer 1.35s ease infinite;
+    border-radius: 6px; height: 100%; width: 100%;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+  /* —— Login —— */
+  .login-screen {
+    position: relative; z-index: 1;
+    min-height: 100vh; display: grid; place-items: center; padding: 32px 20px;
+    background:
+      linear-gradient(135deg, rgba(11,15,20,0.92) 0%, rgba(11,15,20,0.72) 42%, rgba(11,15,20,0.45) 100%),
+      radial-gradient(ellipse 80% 60% at 70% 40%, rgba(18,184,134,0.35), transparent 55%),
+      linear-gradient(160deg, #0b0f14 0%, #1a222d 55%, #0b3d32 100%);
+    overflow: hidden;
+  }
+  .login-screen::before {
+    content: "";
+    position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(232,236,241,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,236,241,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at 30% 50%, #000 20%, transparent 70%);
+  }
+  .login-stage {
+    position: relative; width: min(920px, 100%);
+    display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items: center;
+  }
+  .login-hero { color: #e8ecf1; }
+  .login-hero .brand {
+    font-size: clamp(3rem, 7vw, 4.5rem); font-weight: 800; line-height: 0.95;
+    margin-bottom: 18px; color: #fff;
+  }
+  .login-hero .brand span { color: var(--mint); }
+  .login-hero p {
+    margin: 0; font-size: 1.05rem; color: #a8b2c0; max-width: 28ch; line-height: 1.55;
+  }
+  .login-card {
+    width: 100%; background: var(--surface-2);
+    border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+    padding: 28px 26px; box-shadow: var(--shadow-lg);
+    animation: rise 0.45s var(--ease);
+  }
+  .login-card .login-kicker {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); font-weight: 700; margin: 0 0 18px;
+  }
+  .login-card .btn { width: 100%; margin-top: 6px; padding: 11px 16px; }
+  .login-demo-hint {
+    margin: 14px 0 0; font-size: 12px; color: var(--muted); text-align: center;
+  }
+  .login-demo-hint .num { color: var(--ink-soft); font-size: 12px; }
+  .login-error {
+    color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 1.2em; font-weight: 500;
+  }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 900px) {
+    .kpi-row, .panel-grid.cols-2, .login-stage { grid-template-columns: 1fr; }
+    .main { padding: 20px 16px 48px; }
+    .topbar { padding: 12px 16px 12px 68px; }
+    .login-hero { text-align: center; }
+    .login-hero p { margin-inline: auto; }
+    .login-stage { gap: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="login-screen" class="login-screen">
+  <div class="login-stage">
+    <div class="login-hero">
+      <div class="brand">Led<span>ger</span></div>
+      <p>Actions, revenue, loyalty, and reports — one store console.</p>
+    </div>
+    <div class="login-card">
+      <p class="login-kicker">Store sign-in</p>
+      <div class="field">
+        <label for="login-user">Username</label>
+        <input id="login-user" type="text" autocomplete="username" placeholder="store owner">
+      </div>
+      <div class="field">
+        <label for="login-pass">Password</label>
+        <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="btn" id="login-btn" type="button">Sign in</button>
+      <p class="login-demo-hint" id="login-demo-hint">Demo · <span class="num">owner</span> / <span class="num">demo1234</span></p>
+      <div class="login-error" id="login-error" role="alert"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app-shell" class="shell hidden">
+  <div class="nav-menu" id="nav-menu">
+    <button class="nav-trigger" id="nav-trigger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-panel">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-panel" id="nav-panel" role="menu">
+      <div class="nav-brand">Ledger</div>
+      <div class="nav-brand-sub">Store App</div>
+      <button class="nav-item active" data-view="actions" role="menuitem">Action Center</button>
+      <button class="nav-item" data-view="revenue" role="menuitem">Revenue</button>
+      <button class="nav-item" data-view="intelligence" role="menuitem">Intelligence</button>
+      <button class="nav-item" data-view="loyalty" role="menuitem">Loyalty</button>
+      <button class="nav-item" data-view="reports" role="menuitem">Reports</button>
+      <button class="nav-item" data-view="admin" role="menuitem">Admin</button>
+      <div class="nav-foot">
+        <div class="nav-user"><strong id="auth-store">—</strong><span id="auth-user"></span></div>
+        <button class="link-btn" id="logout-btn" type="button">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="topbar-brand">Led<span>ger</span></div>
+    <div class="topbar-meta">
+      <strong id="topbar-store">—</strong>
+      <span id="topbar-view">Action Center</span>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- ACTION CENTER -->
+    <section class="view active" id="view-actions">
+      <h2 class="view-title">Action Center</h2>
+      <p class="view-sub">Ranked actions for your store. Accept what you’ll do; mark useful so next month’s list learns.</p>
+      <div class="form-row">
+        <div class="field" style="margin:0">
+          <label>Status</label>
+          <select id="insight-status-filter">
+            <option value="">All</option>
+            <option value="new" selected>New</option>
+            <option value="accepted">Accepted</option>
+            <option value="dismissed">Dismissed</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+        <button class="btn secondary" id="refresh-insights">Refresh</button>
+        <div class="last-updated" id="actions-updated"></div>
+      </div>
+      <div id="actions-list"><div class="empty-state">Loading…</div></div>
+    </section>
+
+    <!-- REVENUE -->
+    <section class="view" id="view-revenue">
+      <h2 class="view-title">Revenue</h2>
+      <p class="view-sub">Day / week / month view of what already happened.</p>
+      <div class="filterbar">
+        <div>
+          <label>Start Date</label>
+          <input type="date" id="start-date">
+        </div>
+        <div>
+          <label>End Date</label>
+          <input type="date" id="end-date">
+        </div>
+        <button class="btn" id="apply-filters">Apply</button>
+        <div class="last-updated" id="last-updated"></div>
+      </div>
+      <div class="kpi-row" id="kpi-row">
+        <div class="kpi-card"><div class="chart-wrap" style="height:60px"><div class="loading-skel"></div></div></div>
+        <div class="kpi-card"><div class="chart-wrap" style="height:60px"><div class="loading-skel"></div></div></div>
+        <div class="kpi-card"><div class="chart-wrap" style="height:60px"><div class="loading-skel"></div></div></div>
+        <div class="kpi-card"><div class="chart-wrap" style="height:60px"><div class="loading-skel"></div></div></div>
+      </div>
+      <div class="panel-grid">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>Sales Trend <span class="source-tag" id="revenue-source"></span></h3>
+              <p class="subtitle" id="trend-subtitle">Daily revenue with moving average</p>
+            </div>
+            <div class="period-toggle" id="granularity-toggle" role="group" aria-label="Revenue period">
+              <button type="button" data-g="day" class="active">Day</button>
+              <button type="button" data-g="week">Week</button>
+              <button type="button" data-g="month">Month</button>
+            </div>
+          </div>
+          <div class="chart-wrap tall" id="sales-trend-wrap"><canvas id="sales-trend-chart"></canvas></div>
+        </div>
+      </div>
+      <div class="panel-grid cols-2">
+        <div class="panel">
+          <h3>Top Products</h3>
+          <p class="subtitle">By revenue, current period</p>
+          <div class="chart-wrap"><canvas id="top-products-chart"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Category Breakdown</h3>
+          <p class="subtitle">Share of revenue by category</p>
+          <div class="chart-wrap"><canvas id="category-chart"></canvas></div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Pareto Analysis</h3>
+          <p class="subtitle">Product revenue rank vs. cumulative % of total</p>
+          <div class="chart-wrap tall"><canvas id="pareto-chart"></canvas></div>
+          <div class="pareto-callout" id="pareto-callout"></div>
+        </div>
+      </div>
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Sales by Day &amp; Hour</h3>
+          <p class="subtitle">Darker = higher revenue</p>
+          <div id="heatmap-container"><div class="loading-skel" style="height:180px"></div></div>
+        </div>
+      </div>
+      <div class="panel-grid cols-2">
+        <div class="panel" id="store-comparison-panel">
+          <h3>Store Comparison</h3>
+          <p class="subtitle">Hidden when signed in to a single store</p>
+          <div id="store-comparison-container"><div class="loading-skel" style="height:120px"></div></div>
+        </div>
+        <div class="panel">
+          <h3>Payment Methods</h3>
+          <p class="subtitle">Revenue share by payment type</p>
+          <div class="chart-wrap"><canvas id="payment-chart"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- INTELLIGENCE -->
+    <section class="view" id="view-intelligence">
+      <h2 class="view-title">Intelligence</h2>
+      <p class="view-sub">ML outputs from your last report refresh — forecasts, bundles, pricing, inventory, customers, festivals.</p>
+      <div class="tabs" id="ml-tabs">
+        <button class="tab active" data-ml="forecast">Forecast</button>
+        <button class="tab" data-ml="bundles">Bundles</button>
+        <button class="tab" data-ml="pricing">Pricing</button>
+        <button class="tab" data-ml="inventory">Inventory</button>
+        <button class="tab" data-ml="customers">Customers</button>
+        <button class="tab" data-ml="festivals">Festivals</button>
+      </div>
+      <div class="stat-grid" id="ml-counts"></div>
+      <div class="panel">
+        <div id="ml-table"><div class="empty-state">Select a module</div></div>
+      </div>
+    </section>
+
+    <!-- LOYALTY -->
+    <section class="view" id="view-loyalty">
+      <h2 class="view-title">Loyalty</h2>
+      <p class="view-sub">Look up a phone, see tier &amp; balance, redeem catalog rewards (Pro plan).</p>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="form-row">
+          <div class="field" style="margin:0; flex:1">
+            <label>Phone</label>
+            <input id="loyalty-phone" type="text" placeholder="9876543210" style="max-width:100%">
+          </div>
+          <button class="btn teal" id="loyalty-lookup-btn">Lookup</button>
+        </div>
+        <div id="loyalty-result"></div>
+      </div>
+      <div class="panel">
+        <h3>Reward catalog</h3>
+        <p class="subtitle">Redeem against the looked-up phone</p>
+        <div id="loyalty-rewards"><div class="empty-state">Load after lookup</div></div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="view" id="view-reports">
+      <h2 class="view-title">Reports</h2>
+      <p class="view-sub">Generate a monthly snapshot (runs ML + insight engine). MoM appears after a second month.</p>
+      <div class="panel" style="margin-bottom:16px">
+        <div class="stat-grid" id="report-quota"></div>
+        <div class="form-row">
+          <div class="field" style="margin:0">
+            <label>Period start</label>
+            <input type="date" id="report-start">
+          </div>
+          <div class="field" style="margin:0">
+            <label>Period end</label>
+            <input type="date" id="report-end">
+          </div>
+          <button class="btn amber" id="generate-report-btn">Generate report</button>
+        </div>
+        <div id="report-flash"></div>
+      </div>
+      <div class="panel">
+        <h3>Prior snapshots</h3>
+        <div id="reports-list"><div class="empty-state">Loading…</div></div>
+      </div>
+    </section>
+
+    <!-- ADMIN -->
+    <section class="view" id="view-admin">
+      <h2 class="view-title">Admin</h2>
+      <p class="view-sub">Subscription, POS key, automation health, and pilot outcomes.</p>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Subscription</h3>
+        <div id="admin-sub"><div class="empty-state">Loading…</div></div>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>POS API key</h3>
+        <p class="subtitle">Send as <span class="num">X-API-Key</span> on <span class="num">POST /api/v1/invoices</span></p>
+        <div id="admin-key"></div>
+        <button class="btn" id="rotate-key-btn">Issue / rotate key</button>
+        <div id="admin-key-flash"></div>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Monitoring</h3>
+        <p class="subtitle">Nightly ML refresh status, forecast MAPE, ingestion errors.</p>
+        <div id="admin-health"><div class="empty-state">Loading…</div></div>
+        <div id="admin-jobs" style="margin-top:12px"></div>
+        <div id="admin-alerts" style="margin-top:12px"></div>
+        <button class="btn" id="manual-refresh-btn" style="margin-top:12px">Run ML refresh now</button>
+        <div id="admin-refresh-flash"></div>
+      </div>
+      <div class="panel">
+        <h3>Pilot</h3>
+        <p class="subtitle">Prove value: accepted actions → revenue before/after, historical correlation.</p>
+        <div id="admin-pilot"><div class="empty-state">Loading…</div></div>
+        <div id="admin-pilot-outcomes" style="margin-top:12px"></div>
+        <button class="btn" id="pilot-backtest-btn" style="margin-top:12px">Run correlation backtest</button>
+        <div id="admin-pilot-flash"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8001'
+  : '';
+const COLORS = ['#12b886', '#0b0f14', '#5a6574', '#f0a202', '#e03131', '#0a7a58', '#1a222d', '#339af0'];
+const CHART_GRID = '#d8dee7';
+const CHART_TICK = '#5a6574';
+const TOKEN_KEY = 'ledger_store_token';
+const AUTH_KEY = 'ledger_store_auth';
+const VIEW_LABELS = {
+  actions: 'Action Center',
+  revenue: 'Revenue',
+  intelligence: 'Intelligence',
+  loyalty: 'Loyalty',
+  reports: 'Reports',
+  admin: 'Admin',
+};
+
+let charts = {};
+let trendGranularity = 'day';
+let auth = null;
+let currentView = 'actions';
+let currentMl = 'forecast';
+
+function fmtCurrency(v) {
+  if (v == null) return '—';
+  return '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+}
+function todayISO(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + (offsetDays || 0));
+  return d.toISOString().slice(0, 10);
+}
+function monthBounds(d = new Date()) {
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const iso = (x) => x.toISOString().slice(0, 10);
+  return { start: iso(start), end: iso(end) };
+}
+
+function authHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  const t = localStorage.getItem(TOKEN_KEY);
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+
+async function api(path, { method = 'GET', params, body } = {}) {
+  let url = (API_BASE || '') + path;
+  if (params) {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, v);
+    });
+    const s = qs.toString();
+    if (s) url += (url.includes('?') ? '&' : '?') + s;
+  }
+  const opts = { method, headers: authHeaders() };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const resp = await fetch(url, opts);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const detail = data.detail || data.message || ('HTTP ' + resp.status);
+    const err = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    err.status = resp.status;
+    throw err;
+  }
+  return data;
+}
+
+function showApp(loggedIn) {
+  document.getElementById('login-screen').classList.toggle('hidden', loggedIn);
+  document.getElementById('app-shell').classList.toggle('hidden', !loggedIn);
+}
+
+function setAuth(info, token) {
+  auth = info;
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  if (info) localStorage.setItem(AUTH_KEY, JSON.stringify(info));
+  else {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(AUTH_KEY);
+  }
+  if (info) {
+    const store = info.store_name || info.store_id;
+    document.getElementById('auth-store').textContent = store;
+    document.getElementById('auth-user').textContent = (info.username || '') + (info.plan ? ' · ' + info.plan : '');
+    const top = document.getElementById('topbar-store');
+    if (top) top.textContent = store;
+  }
+}
+
+async function tryRestoreSession() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return false;
+  try {
+    const me = await api('/api/v1/auth/me');
+    setAuth(me, token);
+    return true;
+  } catch {
+    setAuth(null);
+    return false;
+  }
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-user').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const res = await api('/api/v1/auth/login', { method: 'POST', body: { username, password } });
+    setAuth({
+      store_id: res.store_id,
+      store_name: res.store_name,
+      username: res.username,
+      plan: res.plan,
+    }, res.token);
+    showApp(true);
+    await loadView('actions');
+  } catch (e) {
+    errEl.textContent = e.message || 'Login failed';
+  }
+}
+
+async function doLogout() {
+  try { await api('/api/v1/auth/logout', { method: 'POST' }); } catch (_) {}
+  setAuth(null);
+  showApp(false);
+}
+
+function switchView(name) {
+  currentView = name;
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.view === name);
+  });
+  document.querySelectorAll('.view').forEach(el => {
+    el.classList.toggle('active', el.id === 'view-' + name);
+  });
+  const label = document.getElementById('topbar-view');
+  if (label) label.textContent = VIEW_LABELS[name] || name;
+  closeNavMenu();
+  loadView(name);
+}
+
+function chartDefaults() {
+  if (!window.Chart) return;
+  Chart.defaults.font.family = "'Figtree', system-ui, sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = CHART_TICK;
+  Chart.defaults.borderColor = CHART_GRID;
+  Chart.defaults.plugins.legend.labels.boxWidth = 10;
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
+}
+
+function openNavMenu() {
+  const menu = document.getElementById('nav-menu');
+  const trigger = document.getElementById('nav-trigger');
+  menu.classList.add('open');
+  trigger.setAttribute('aria-expanded', 'true');
+}
+
+function closeNavMenu() {
+  const menu = document.getElementById('nav-menu');
+  const trigger = document.getElementById('nav-trigger');
+  menu.classList.remove('open');
+  trigger.setAttribute('aria-expanded', 'false');
+}
+
+function toggleNavMenu() {
+  if (document.getElementById('nav-menu').classList.contains('open')) closeNavMenu();
+  else openNavMenu();
+}
+
+async function loadView(name) {
+  try {
+    if (name === 'actions') await loadInsights();
+    else if (name === 'revenue') await loadDashboard();
+    else if (name === 'intelligence') await loadIntelligence();
+    else if (name === 'loyalty') await loadLoyaltyRewards();
+    else if (name === 'reports') await loadReports();
+    else if (name === 'admin') await loadAdmin();
+  } catch (e) {
+    console.error(e);
+    if (e.status === 401) { doLogout(); }
+  }
+}
+
+/* ---- Action Center ---- */
+async function loadInsights() {
+  const status = document.getElementById('insight-status-filter').value;
+  const el = document.getElementById('actions-list');
+  el.innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const res = await api('/api/v1/insights', { params: { limit: 40, status: status || undefined } });
+    const rows = res.data || [];
+    document.getElementById('actions-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">No actions yet. Generate a report to refresh ML + insights.</div>';
+      return;
+    }
+    el.innerHTML = rows.map(r => `
+      <div class="action-card ${r.priority || 'low'}">
+        <div class="action-meta">
+          <span class="badge ${r.priority || 'neutral'}">${r.priority || '—'}</span>
+          <span class="badge neutral">${r.action_type || ''}</span>
+          <span class="num">score ${r.score != null ? Number(r.score).toFixed(1) : '—'}</span>
+          ${r.impact_estimate != null ? `<span class="num">impact ${fmtCurrency(r.impact_estimate)}</span>` : ''}
+          <span>${r.status || ''}</span>
+          ${r.feedback ? `<span>feedback: ${r.feedback}</span>` : ''}
+        </div>
+        <h3 class="action-title">${escapeHtml(r.title)}</h3>
+        <p class="action-body">${escapeHtml(r.body)}</p>
+        <div class="action-actions">
+          <button class="btn sm teal" data-act="accept" data-id="${r.insight_id}">Accept</button>
+          <button class="btn sm secondary" data-act="dismiss" data-id="${r.insight_id}">Dismiss</button>
+          <button class="btn sm secondary" data-act="done" data-id="${r.insight_id}">Done</button>
+          <button class="btn sm" data-act="useful" data-id="${r.insight_id}">Useful</button>
+          <button class="btn sm secondary" data-act="not_useful" data-id="${r.insight_id}">Not useful</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state">Error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function insightFeedback(id, payload) {
+  await api('/api/v1/insights/' + id + '/feedback', { method: 'PATCH', body: payload });
+  await loadInsights();
+}
+
+/* ---- Revenue (existing charts) ---- */
+function currentFilters() {
+  return {
+    start_date: document.getElementById('start-date').value,
+    end_date: document.getElementById('end-date').value,
+  };
+}
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+function renderKpis(data) {
+  const row = document.getElementById('kpi-row');
+  const changeText = (pct) => {
+    if (pct === null || pct === undefined) return { cls: 'flat', text: 'No prior period' };
+    if (pct > 0) return { cls: 'up', text: `▲ ${pct.toFixed(1)}% vs previous period` };
+    if (pct < 0) return { cls: 'down', text: `▼ ${Math.abs(pct).toFixed(1)}% vs previous period` };
+    return { cls: 'flat', text: 'Flat vs previous period' };
+  };
+  const change = changeText(data.revenue_pct_change_vs_previous_period);
+  row.innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Total Revenue</div><div class="kpi-value num">${fmtCurrency(data.total_revenue)}</div><div class="kpi-change ${change.cls}">${change.text}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Transactions</div><div class="kpi-value num">${(data.total_transactions||0).toLocaleString('en-IN')}</div><div class="kpi-change flat">&nbsp;</div></div>
+    <div class="kpi-card"><div class="kpi-label">Avg Basket Value</div><div class="kpi-value num">${fmtCurrency(data.avg_basket_value)}</div><div class="kpi-change flat">&nbsp;</div></div>
+    <div class="kpi-card"><div class="kpi-label">Units Sold</div><div class="kpi-value num">${Number(data.units_sold||0).toLocaleString('en-IN')}</div><div class="kpi-change flat">&nbsp;</div></div>
+  `;
+}
+
+function renderSalesTrend(payload) {
+  destroyChart('trend');
+  const wrap = document.getElementById('sales-trend-wrap');
+  const rows = payload.series || payload;
+  const sourceEl = document.getElementById('revenue-source');
+  const sub = document.getElementById('trend-subtitle');
+  const g = payload.granularity || trendGranularity;
+  const labels = { day: 'Daily', week: 'Weekly', month: 'Monthly' };
+  sub.textContent = `${labels[g] || 'Daily'} revenue with moving average`;
+  if (sourceEl) sourceEl.textContent = payload.source ? `(${payload.source})` : '';
+  if (!rows.length) { wrap.innerHTML = '<div class="empty-state">No transactions in this period.</div>'; return; }
+  wrap.innerHTML = '<canvas id="sales-trend-chart"></canvas>';
+  const maKey = rows[0].moving_avg != null ? 'moving_avg' : 'moving_avg_7';
+  charts.trend = new Chart(document.getElementById('sales-trend-chart'), {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.period),
+      datasets: [
+        { label: 'Revenue', data: rows.map(r => r.revenue), borderColor: '#12b886', backgroundColor: 'rgba(18,184,134,0.10)', fill: true, tension: 0.28, pointRadius: 0, pointHoverRadius: 3, borderWidth: 2 },
+        { label: 'Moving Avg', data: rows.map(r => r[maKey]), borderColor: '#0b0f14', borderDash: [4,4], pointRadius: 0, tension: 0.28, borderWidth: 1.5 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { callback: v => '₹' + (v/1000) + 'k' }, grid: { color: CHART_GRID } },
+      },
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+}
+
+function renderTopProducts(rows) {
+  destroyChart('topProducts');
+  const parent = document.getElementById('top-products-chart').parentElement;
+  if (!rows.length) { parent.innerHTML = '<div class="empty-state">No product sales in this period.</div>'; return; }
+  parent.innerHTML = '<canvas id="top-products-chart"></canvas>';
+  charts.topProducts = new Chart(document.getElementById('top-products-chart'), {
+    type: 'bar',
+    data: { labels: rows.map(r => r.product_name), datasets: [{ label: 'Revenue', data: rows.map(r => r.revenue), backgroundColor: '#12b886', borderRadius: 3, barThickness: 14 }] },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { callback: v => '₹' + (v/1000) + 'k' }, grid: { color: CHART_GRID } },
+        y: { grid: { display: false } },
+      },
+    }
+  });
+}
+
+function renderCategoryBreakdown(rows) {
+  destroyChart('category');
+  const parent = document.getElementById('category-chart').parentElement;
+  if (!rows.length) { parent.innerHTML = '<div class="empty-state">No category data available.</div>'; return; }
+  parent.innerHTML = '<canvas id="category-chart"></canvas>';
+  charts.category = new Chart(document.getElementById('category-chart'), {
+    type: 'doughnut',
+    data: { labels: rows.map(r => r.category), datasets: [{ data: rows.map(r => r.revenue), backgroundColor: COLORS, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+function renderPareto(payload) {
+  destroyChart('pareto');
+  const rows = payload.products || [];
+  const callout = document.getElementById('pareto-callout');
+  const parent = document.getElementById('pareto-chart').parentElement;
+  if (!rows.length) {
+    parent.innerHTML = '<div class="empty-state">No product data available.</div>';
+    callout.style.display = 'none';
+    return;
+  }
+  parent.innerHTML = '<canvas id="pareto-chart"></canvas>';
+  callout.style.display = 'inline-block';
+  callout.textContent = payload.products_making_80pct_revenue
+    ? `${payload.products_making_80pct_revenue} of ${rows.length} products drive 80% of revenue`
+    : 'Not enough data to compute an 80% cutoff';
+  charts.pareto = new Chart(document.getElementById('pareto-chart'), {
+    data: {
+      labels: rows.map(r => r.product_name),
+      datasets: [
+        { type: 'bar', label: 'Revenue', data: rows.map(r => r.revenue), backgroundColor: '#12b886', order: 2, borderRadius: 2 },
+        { type: 'line', label: 'Cumulative %', data: rows.map(r => r.cumulative_pct), borderColor: '#0b0f14', yAxisID: 'y1', pointRadius: 0, borderWidth: 2, order: 1 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { position: 'left', ticks: { callback: v => '₹' + (v/1000) + 'k' }, grid: { color: CHART_GRID } },
+        y1: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, ticks: { callback: v => v + '%' } },
+        x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 45, font: { size: 10 } }, grid: { display: false } }
+      },
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+}
+
+function renderHeatmap(rows) {
+  const container = document.getElementById('heatmap-container');
+  if (!rows.length) { container.innerHTML = '<div class="empty-state">No time-of-day data available.</div>'; return; }
+  const hasHour = rows.some(r => r.hour !== null);
+  if (!hasHour) {
+    container.innerHTML = '<div class="empty-state">Invoice time-of-day not recorded for this data.</div>';
+    return;
+  }
+  const maxRev = Math.max(...rows.map(r => r.revenue));
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const cellMap = {};
+  rows.forEach(r => { cellMap[`${r.day_of_week}-${r.hour}`] = r.revenue; });
+  let html = '<div class="heatmap-grid"><div></div>';
+  for (let h = 0; h < 24; h++) html += `<div class="row-label" style="justify-content:center">${h}</div>`;
+  for (let d = 0; d < 7; d++) {
+    html += `<div class="row-label">${dayNames[d]}</div>`;
+    for (let h = 0; h < 24; h++) {
+      const rev = cellMap[`${d}-${h}`] || 0;
+      const intensity = maxRev ? rev / maxRev : 0;
+      const bg = intensity === 0 ? '#e8ecf1' : `rgba(18,184,134,${0.12 + intensity * 0.88})`;
+      html += `<div class="heatmap-cell" style="background:${bg}" title="${dayNames[d]} ${h}:00 — ${fmtCurrency(rev)}"></div>`;
+    }
+  }
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function renderStoreComparison(rows) {
+  const container = document.getElementById('store-comparison-container');
+  const panel = document.getElementById('store-comparison-panel');
+  if (rows.length <= 1) { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  let html = '<table class="data-table"><thead><tr><th>Store</th><th>Revenue</th><th>Transactions</th><th>Avg Basket</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    html += `<tr><td>${escapeHtml(r.store_name)}</td><td class="num">${fmtCurrency(r.revenue)}</td><td class="num">${r.transactions}</td><td class="num">${fmtCurrency(r.avg_basket_value)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function renderPaymentMethods(rows) {
+  destroyChart('payment');
+  const parent = document.getElementById('payment-chart').parentElement;
+  if (!rows.length) { parent.innerHTML = '<div class="empty-state">No payment method data available.</div>'; return; }
+  parent.innerHTML = '<canvas id="payment-chart"></canvas>';
+  charts.payment = new Chart(document.getElementById('payment-chart'), {
+    type: 'doughnut',
+    data: { labels: rows.map(r => r.payment_method), datasets: [{ data: rows.map(r => r.revenue), backgroundColor: COLORS, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '58%', plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+async function loadDashboard() {
+  const filters = currentFilters();
+  document.getElementById('last-updated').textContent = 'Loading…';
+  try {
+    const [kpis, trend, topProducts, categories, pareto, heatmap, stores, payments] = await Promise.all([
+      api('/api/kpis', { params: filters }),
+      api('/api/revenue', { params: { ...filters, granularity: trendGranularity } }),
+      api('/api/top-products', { params: { ...filters, limit: 8 } }),
+      api('/api/category-breakdown', { params: filters }),
+      api('/api/pareto', { params: filters }),
+      api('/api/time-heatmap', { params: filters }),
+      api('/api/store-comparison', { params: { start_date: filters.start_date, end_date: filters.end_date } }),
+      api('/api/payment-methods', { params: filters }),
+    ]);
+    renderKpis(kpis.data);
+    renderSalesTrend(trend.data);
+    renderTopProducts(topProducts.data);
+    renderCategoryBreakdown(categories.data);
+    renderPareto(pareto.data);
+    renderHeatmap(heatmap.data);
+    renderStoreComparison(stores.data);
+    renderPaymentMethods(payments.data);
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    document.getElementById('last-updated').textContent = 'Error: ' + e.message;
+  }
+}
+
+/* ---- Intelligence ---- */
+async function loadIntelligence() {
+  const counts = await api('/api/v1/ml/summary');
+  const c = counts.data || {};
+  document.getElementById('ml-counts').innerHTML = Object.entries(c).map(([k,v]) =>
+    `<div class="stat"><div class="lbl">${k}</div><div class="val num">${v}</div></div>`
+  ).join('');
+  await loadMlModule(currentMl);
+}
+
+async function loadMlModule(mod) {
+  currentMl = mod;
+  document.querySelectorAll('#ml-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.ml === mod));
+  const el = document.getElementById('ml-table');
+  el.innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const res = await api('/api/v1/ml/' + mod, { params: { limit: 40 } });
+    const rows = res.data || [];
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">No rows yet. Generate a report to run ML for this store.</div>';
+      return;
+    }
+    el.innerHTML = renderMlTable(mod, rows);
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state">Error: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderMlTable(mod, rows) {
+  const specs = {
+    forecast: {
+      heads: ['Product', 'Date', 'Units', 'Revenue', 'Confidence', 'MAPE %'],
+      cells: r => [r.product_name, r.forecast_date, r.predicted_units, fmtCurrency(r.predicted_revenue), r.confidence_level, r.backtest_mape_pct],
+    },
+    bundles: {
+      heads: ['If buy', 'Also buy', 'Lift', 'Confidence', 'Suggestion'],
+      cells: r => [(r.antecedents||[]).join(', '), (r.consequents||[]).join(', '), r.lift != null ? Number(r.lift).toFixed(2) : '—', r.confidence != null ? Number(r.confidence).toFixed(2) : '—', r.suggestion_text || ''],
+    },
+    pricing: {
+      heads: ['Product', 'Class', 'Elasticity', 'Promo floor', 'Suggestion'],
+      cells: r => [r.product_name, r.classification, r.elasticity_coefficient != null ? Number(r.elasticity_coefficient).toFixed(2) : '—', r.promo_floor_flag ? 'yes' : 'no', r.suggestion_text || ''],
+    },
+    inventory: {
+      heads: ['Product', 'Signal', 'Severity', 'Days since sale', 'Suggestion'],
+      cells: r => [r.product_name, r.signal_type, r.severity, r.days_since_sale, r.suggestion_text || ''],
+    },
+    customers: {
+      heads: ['Phone', 'Segment', 'Monetary', 'Visits', 'Churn'],
+      cells: r => [r.phone_normalized || r.customer_id, r.segment, fmtCurrency(r.monetary), r.frequency, r.churn_score != null ? Number(r.churn_score).toFixed(2) : '—'],
+    },
+    festivals: {
+      heads: ['Festival', 'Year', 'Product', 'Action', 'Lift', 'Suggestion'],
+      cells: r => [r.festival_name, r.festival_year, r.product_name || 'store', r.action, r.lift_vs_baseline != null ? Number(r.lift_vs_baseline).toFixed(2) : '—', r.suggestion_text || ''],
+    },
+  };
+  const spec = specs[mod];
+  let html = '<table class="data-table"><thead><tr>' + spec.heads.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr>' + spec.cells(r).map(c => `<td>${escapeHtml(c)}</td>`).join('') + '</tr>';
+  });
+  return html + '</tbody></table>';
+}
+
+/* ---- Loyalty ---- */
+async function loadLoyaltyRewards() {
+  const el = document.getElementById('loyalty-rewards');
+  try {
+    const res = await api('/api/v1/loyalty/rewards');
+    const rewards = res.rewards || [];
+    if (!rewards.length) { el.innerHTML = '<div class="empty-state">No rewards in catalog</div>'; return; }
+    el.innerHTML = '<table class="data-table"><thead><tr><th>Code</th><th>Name</th><th>Points</th><th></th></tr></thead><tbody>' +
+      rewards.map(r => `<tr>
+        <td class="num">${escapeHtml(r.code || r.reward_code)}</td>
+        <td>${escapeHtml(r.name || r.title || '')}</td>
+        <td class="num">${r.points_cost ?? r.cost ?? '—'}</td>
+        <td><button class="btn sm" data-redeem="${escapeHtml(r.code || r.reward_code)}">Redeem</button></td>
+      </tr>`).join('') + '</tbody></table>';
+  } catch (e) {
+    el.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function loyaltyLookup() {
+  const phone = document.getElementById('loyalty-phone').value.trim();
+  const el = document.getElementById('loyalty-result');
+  try {
+    const r = await api('/api/v1/loyalty/lookup', { params: { phone } });
+    el.innerHTML = `<div class="stat-grid">
+      <div class="stat"><div class="lbl">Customer</div><div class="val">${escapeHtml(r.customer_name || '—')}</div></div>
+      <div class="stat"><div class="lbl">Tier</div><div class="val">${escapeHtml(r.tier || '—')}</div></div>
+      <div class="stat"><div class="lbl">Points</div><div class="val num">${r.points_balance ?? 0}</div></div>
+      <div class="stat"><div class="lbl">Lifetime spend</div><div class="val num">${fmtCurrency(r.lifetime_spend)}</div></div>
+    </div>`;
+  } catch (e) {
+    el.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function loyaltyRedeem(code) {
+  const phone = document.getElementById('loyalty-phone').value.trim();
+  if (!phone) { alert('Enter a phone first'); return; }
+  try {
+    const r = await api('/api/v1/loyalty/redeem', { method: 'POST', body: { phone, reward_code: code } });
+    document.getElementById('loyalty-result').innerHTML =
+      `<div class="flash">Redeemed. Balance now ${r.points_balance} (${r.tier})</div>`;
+    await loyaltyLookup();
+  } catch (e) {
+    document.getElementById('loyalty-result').innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ---- Reports ---- */
+async function loadReports() {
+  const quotaEl = document.getElementById('report-quota');
+  const listEl = document.getElementById('reports-list');
+  try {
+    const sub = await api('/api/v1/subscription');
+    quotaEl.innerHTML = `
+      <div class="stat"><div class="lbl">Plan</div><div class="val">${escapeHtml(sub.plan_display_name || sub.plan)}</div></div>
+      <div class="stat"><div class="lbl">Reports left</div><div class="val num">${sub.reports_remaining}</div></div>
+      <div class="stat"><div class="lbl">Used this period</div><div class="val num">${sub.reports_used_this_period}/${sub.monthly_report_quota}</div></div>
+      <div class="stat"><div class="lbl">Status</div><div class="val">${escapeHtml(sub.status)}</div></div>`;
+    document.getElementById('generate-report-btn').disabled = !sub.can_generate_report;
+
+    const listed = await api('/api/v1/reports', { params: { limit: 12 } });
+    const rows = listed.data || [];
+    if (!rows.length) {
+      listEl.innerHTML = '<div class="empty-state">No snapshots yet</div>';
+      return;
+    }
+    listEl.innerHTML = '<table class="data-table"><thead><tr><th>Period</th><th>Revenue</th><th>Txns</th><th>Top actions</th><th>MoM</th></tr></thead><tbody>' +
+      rows.map(r => {
+        const k = r.kpis || {};
+        const mom = r.mom;
+        const momTxt = mom && mom.available
+          ? `rev ${(mom.kpi_deltas&&mom.kpi_deltas.revenue_pct!=null)?mom.kpi_deltas.revenue_pct+'%':'—'}`
+          : '—';
+        const actions = (r.top_actions || []).slice(0, 2).map(a => a.title).join('; ');
+        return `<tr>
+          <td class="num">${escapeHtml(r.period_start)} → ${escapeHtml(r.period_end)}</td>
+          <td class="num">${fmtCurrency(k.total_revenue)}</td>
+          <td class="num">${k.total_transactions ?? '—'}</td>
+          <td>${escapeHtml(actions || '—')}</td>
+          <td class="num">${escapeHtml(momTxt)}</td>
+        </tr>`;
+      }).join('') + '</tbody></table>';
+  } catch (e) {
+    quotaEl.innerHTML = '';
+    listEl.innerHTML = `<div class="empty-state">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function generateReport() {
+  const flash = document.getElementById('report-flash');
+  flash.innerHTML = '<div class="flash">Generating (ML + insights)…</div>';
+  try {
+    const res = await api('/api/v1/reports', {
+      method: 'POST',
+      body: {
+        period_start: document.getElementById('report-start').value,
+        period_end: document.getElementById('report-end').value,
+        period_type: 'monthly',
+      },
+    });
+    const mom = res.mom && res.mom.available ? ' MoM available.' : '';
+    flash.innerHTML = `<div class="flash">Snapshot ${escapeHtml(res.snapshot_id)} saved.${mom}</div>`;
+    await loadReports();
+  } catch (e) {
+    flash.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ---- Admin ---- */
+async function loadAdmin() {
+  const subEl = document.getElementById('admin-sub');
+  const keyEl = document.getElementById('admin-key');
+  const healthEl = document.getElementById('admin-health');
+  const jobsEl = document.getElementById('admin-jobs');
+  const alertsEl = document.getElementById('admin-alerts');
+  const pilotEl = document.getElementById('admin-pilot');
+  const pilotOutEl = document.getElementById('admin-pilot-outcomes');
+  try {
+    const [sub, key, health, jobs, alerts, pilot] = await Promise.all([
+      api('/api/v1/subscription'),
+      api('/api/v1/admin/api-key'),
+      api('/api/v1/monitoring/health'),
+      api('/api/v1/monitoring/jobs?limit=8'),
+      api('/api/v1/monitoring/alerts?status=open'),
+      api('/api/v1/pilot/summary'),
+    ]);
+    subEl.innerHTML = `<div class="stat-grid">
+      <div class="stat"><div class="lbl">Plan</div><div class="val">${escapeHtml(sub.plan_display_name || sub.plan)}</div></div>
+      <div class="stat"><div class="lbl">Status</div><div class="val">${escapeHtml(sub.status)}</div></div>
+      <div class="stat"><div class="lbl">Report quota</div><div class="val num">${sub.reports_remaining} left</div></div>
+      <div class="stat"><div class="lbl">Require phone</div><div class="val">${sub.require_customer_phone ? 'yes' : 'no'}</div></div>
+    </div>`;
+    keyEl.innerHTML = key.has_key
+      ? `<p>Key on file. Prefix: <span class="num">${escapeHtml(key.prefix)}</span></p>`
+      : `<p class="subtitle">No POS key issued yet.</p>`;
+
+    const mape = health.mape || {};
+    const curr = mape.current || {};
+    const ing = health.ingestion || {};
+    healthEl.innerHTML = `<div class="stat-grid">
+      <div class="stat"><div class="lbl">Overall</div><div class="val">${health.healthy ? 'healthy' : 'attention'}</div></div>
+      <div class="stat"><div class="lbl">Avg MAPE</div><div class="val num">${curr.avg_mape_pct != null ? curr.avg_mape_pct + '%' : '—'}</div></div>
+      <div class="stat"><div class="lbl">Ingest errors (24h)</div><div class="val num">${ing.n_errors != null ? ing.n_errors : '—'}</div></div>
+      <div class="stat"><div class="lbl">Error rate</div><div class="val num">${ing.error_rate != null ? (ing.error_rate * 100).toFixed(1) + '%' : '—'}</div></div>
+    </div>`;
+
+    const jobRows = (jobs.data || []).slice(0, 5);
+    jobsEl.innerHTML = jobRows.length
+      ? `<h4 style="margin:0 0 8px;font-size:13px">Recent jobs</h4><ul class="insight-list">${jobRows.map(j =>
+          `<li><span class="num">${escapeHtml(j.job_type)}</span> · ${escapeHtml(j.status)} · ${escapeHtml((j.started_at || '').slice(0, 16))}</li>`
+        ).join('')}</ul>`
+      : `<p class="subtitle">No job runs yet. Cron: <span class="num">python cli.py nightly-refresh</span></p>`;
+
+    const alertRows = alerts.data || [];
+    alertsEl.innerHTML = alertRows.length
+      ? `<h4 style="margin:0 0 8px;font-size:13px">Open alerts</h4><ul class="insight-list">${alertRows.map(a =>
+          `<li><strong>${escapeHtml(a.severity)}</strong> ${escapeHtml(a.title)} — ${escapeHtml(a.message)}
+           <button class="btn btn-sm" data-ack="${escapeHtml(a.alert_id)}">Ack</button></li>`
+        ).join('')}</ul>`
+      : `<p class="subtitle">No open alerts.</p>`;
+
+    const oc = pilot.outcomes || {};
+    const corr = pilot.correlation || {};
+    pilotEl.innerHTML = `<div class="stat-grid">
+      <div class="stat"><div class="lbl">Acted on</div><div class="val num">${oc.n_acted != null ? oc.n_acted : 0}</div></div>
+      <div class="stat"><div class="lbl">Measurable</div><div class="val num">${oc.n_measurable != null ? oc.n_measurable : 0}</div></div>
+      <div class="stat"><div class="lbl">Avg follow-up Δ%</div><div class="val num">${oc.avg_revenue_pct_change != null ? oc.avg_revenue_pct_change + '%' : '—'}</div></div>
+      <div class="stat"><div class="lbl">Acted vs idle gap</div><div class="val num">${corr.lift_gap_pp != null ? corr.lift_gap_pp + ' pp' : '—'}</div></div>
+    </div>
+    <p class="subtitle" style="margin-top:8px">${corr.enough_history ? 'Enough months for correlation.' : 'Need more month history — keep accepting actions and generating reports.'}</p>`;
+
+    const outcomeRows = pilot.outcome_rows || [];
+    pilotOutEl.innerHTML = outcomeRows.length
+      ? `<h4 style="margin:0 0 8px;font-size:13px">Recent accepted actions</h4>
+         <table class="data-table"><thead><tr>
+           <th>Action</th><th>Resolved</th><th>Baseline</th><th>Follow-up</th><th>Δ%</th>
+         </tr></thead><tbody>${outcomeRows.slice(0, 8).map(o =>
+           `<tr>
+             <td>${escapeHtml((o.title || o.action_type || '').slice(0, 40))}</td>
+             <td class="num">${escapeHtml(o.resolved_at || '')}</td>
+             <td class="num">${fmtCurrency(o.baseline && o.baseline.revenue)}</td>
+             <td class="num">${o.followup ? fmtCurrency(o.followup.revenue) : '—'}</td>
+             <td class="num">${o.revenue_pct_change != null ? o.revenue_pct_change + '%' : (o.measurable ? '—' : 'pending')}</td>
+           </tr>`
+         ).join('')}</tbody></table>`
+      : `<p class="subtitle">No accepted actions yet. Mark actions Useful / Accept in Action Center.</p>`;
+  } catch (e) {
+    subEl.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+    if (healthEl) healthEl.innerHTML = '';
+    if (pilotEl) pilotEl.innerHTML = '';
+  }
+}
+
+async function rotateKey() {
+  if (!confirm('Rotate POS API key? The old key stops working immediately.')) return;
+  const flash = document.getElementById('admin-key-flash');
+  try {
+    const res = await api('/api/v1/admin/api-key', { method: 'POST' });
+    flash.innerHTML = `<div class="flash warn">${escapeHtml(res.warning)}</div>
+      <div class="mono-box">${escapeHtml(res.api_key)}</div>`;
+    await loadAdmin();
+  } catch (e) {
+    flash.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function manualRefresh() {
+  const flash = document.getElementById('admin-refresh-flash');
+  flash.innerHTML = `<div class="flash">Running ML refresh…</div>`;
+  try {
+    const res = await api('/api/v1/monitoring/refresh?skip_forecast=true', { method: 'POST' });
+    flash.innerHTML = `<div class="flash">${escapeHtml(res.status)} · job ${escapeHtml(res.job_id || '')}</div>`;
+    await loadAdmin();
+  } catch (e) {
+    flash.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function runPilotBacktest() {
+  const flash = document.getElementById('admin-pilot-flash');
+  flash.innerHTML = `<div class="flash">Running correlation backtest…</div>`;
+  try {
+    const res = await api('/api/v1/pilot/backtest', { method: 'POST' });
+    const signals = ((res.verdict && res.verdict.signals) || []).join(' · ');
+    flash.innerHTML = `<div class="flash">job ${escapeHtml(res.job_id || '')} — ${escapeHtml(signals || 'done')}</div>`;
+    await loadAdmin();
+  } catch (e) {
+    flash.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+/* ---- Wire events ---- */
+document.getElementById('login-btn').addEventListener('click', doLogin);
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('logout-btn').addEventListener('click', doLogout);
+document.getElementById('nav-trigger').addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleNavMenu();
+});
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('nav-menu');
+  if (!menu.classList.contains('open')) return;
+  if (!menu.contains(e.target)) closeNavMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeNavMenu();
+});
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => switchView(el.dataset.view));
+});
+document.getElementById('refresh-insights').addEventListener('click', loadInsights);
+document.getElementById('insight-status-filter').addEventListener('change', loadInsights);
+document.getElementById('actions-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const act = btn.dataset.act;
+  if (act === 'accept') await insightFeedback(id, { status: 'accepted' });
+  else if (act === 'dismiss') await insightFeedback(id, { status: 'dismissed' });
+  else if (act === 'done') await insightFeedback(id, { status: 'done' });
+  else if (act === 'useful') await insightFeedback(id, { feedback: 'useful', status: 'accepted' });
+  else if (act === 'not_useful') await insightFeedback(id, { feedback: 'not_useful', status: 'dismissed' });
+});
+document.getElementById('apply-filters').addEventListener('click', loadDashboard);
+document.getElementById('granularity-toggle').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-g]');
+  if (!btn) return;
+  trendGranularity = btn.dataset.g;
+  document.querySelectorAll('#granularity-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.g === trendGranularity);
+  });
+  loadDashboard();
+});
+document.querySelectorAll('#ml-tabs .tab').forEach(t => {
+  t.addEventListener('click', () => loadMlModule(t.dataset.ml));
+});
+document.getElementById('loyalty-lookup-btn').addEventListener('click', loyaltyLookup);
+document.getElementById('loyalty-rewards').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-redeem]');
+  if (btn) loyaltyRedeem(btn.dataset.redeem);
+});
+document.getElementById('generate-report-btn').addEventListener('click', generateReport);
+document.getElementById('rotate-key-btn').addEventListener('click', rotateKey);
+document.getElementById('manual-refresh-btn').addEventListener('click', manualRefresh);
+document.getElementById('pilot-backtest-btn').addEventListener('click', runPilotBacktest);
+document.getElementById('admin-alerts').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-ack]');
+  if (!btn) return;
+  try {
+    await api(`/api/v1/monitoring/alerts/${btn.dataset.ack}/ack`, {
+      method: 'POST',
+      body: JSON.stringify({ status: 'acknowledged' }),
+    });
+    await loadAdmin();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+(async function init() {
+  chartDefaults();
+  document.getElementById('start-date').value = todayISO(-60);
+  document.getElementById('end-date').value = todayISO(0);
+  const mb = monthBounds();
+  document.getElementById('report-start').value = mb.start;
+  document.getElementById('report-end').value = mb.end;
+  const ok = await tryRestoreSession();
+  showApp(ok);
+  if (ok) await loadView('actions');
+})();
+</script>
+</body>
+</html>

@@ -50,6 +50,15 @@ def test_pdf_adapter_extracts_header_and_line_items():
 
 
 def test_ocr_adapter_extracts_with_confidence_score():
+    try:
+        import shutil
+        if shutil.which("tesseract") is None:
+            pytest.skip("tesseract binary not installed (OCR optional)")
+        import pytesseract
+        pytesseract.get_tesseract_version()
+    except Exception:
+        pytest.skip("tesseract not available (OCR optional)")
+
     adapter = OCRImageAdapter()
     invoices = adapter.parse(os.path.join(FIXTURES, "sample_invoice_scan.png"))
     assert len(invoices) == 1
