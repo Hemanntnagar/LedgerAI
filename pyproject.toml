@@ -2,6 +2,7 @@
 name = "ledger"
 version = "0.1.0"
 description = "Ledger — store Action Center for Indian retail invoices"
+<<<<<<< Updated upstream
 requires-python = ">=3.11"
 
 [tool.vercel]
@@ -9,3 +10,16 @@ entrypoint = "api.index:app"
 
 [tool.vercel.scripts]
 build = "python deploy/vercel_build.py"
+=======
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.139.0",
+    "uvicorn==0.51.0",
+    "starlette==1.3.1",
+    "pydantic==2.13.4",
+    "pydantic_core==2.46.4",
+    "SQLAlchemy==2.0.51",
+    "PyYAML==6.0.3",
+    "RapidFuzz==3.14.5",
+]
+>>>>>>> Stashed changes

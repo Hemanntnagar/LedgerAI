@@ -1,5 +1,8 @@
+<<<<<<< Updated upstream
 # Slim deps for Vercel serverless (read + auth + ingest JSON).
 # Full ML (Prophet, sklearn, OCR) stays in ml-models / invoice-pipeline locally.
+=======
+>>>>>>> Stashed changes
 fastapi==0.139.0
 uvicorn==0.51.0
 starlette==1.3.1

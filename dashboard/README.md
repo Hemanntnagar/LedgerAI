@@ -34,12 +34,7 @@ python3 -m http.server 8080
 
 Open `http://localhost:8080/index.html`. It talks to the backend at
 `http://localhost:8001` by default (see the `API_BASE` constant in
-`index.html` if you need to point it elsewhere, e.g. after deploying).
-
-### Deploy on Vercel
-
-See [`../DEPLOY.md`](../DEPLOY.md). The UI is copied to `public/` and the
-API is served from `api/index.py` (bundled demo DB + serverless guards).
+`index.html` if you need to point it elsewhere).
 
 ## What's implemented
 
