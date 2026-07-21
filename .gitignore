@@ -4,5 +4,8 @@ __pycache__/
 .pytest_cache/
 *.db
 .DS_Store
+<<<<<<< HEAD
 *.egg-info/
 .Python
+=======
+>>>>>>> 83635f97f3082fd0a8883913eb3e92f19af53fb7

@@ -35,13 +35,7 @@ class OCRImageAdapter(InvoiceAdapter):
     def parse(self, file_path: str) -> List[RawInvoiceData]:
         image = Image.open(file_path)
 
-        try:
-            ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-        except pytesseract.TesseractNotFoundError as exc:
-            raise RuntimeError(
-                "Tesseract OCR is not installed or not on PATH. "
-                "Install it (e.g. `brew install tesseract`) to parse scanned invoices."
-            ) from exc
+        ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
         confidences = [int(c) for c in ocr_data.get("conf", []) if str(c).strip() not in ("", "-1")]
         avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
 

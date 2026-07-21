@@ -1,4 +1,41 @@
-# Invoice Analytics Platform — Combined Build
+# Ledger — Invoice Analytics for Indian Retail
+
+**Repo:** [https://github.com/Hemanntnagar/Ledger](https://github.com/Hemanntnagar/Ledger)
+
+Ledger turns store invoice history into a daily **Action Center**: ranked,
+quantified actions (bundles, pricing, inventory, loyalty), ML tables, and
+monthly reports — backed by a shared invoice database.
+
+| Link | Purpose |
+|---|---|
+| [Repo](https://github.com/Hemanntnagar/Ledger) | Source (this README) |
+| [DEPLOY.md](DEPLOY.md) | Vercel demo deploy + judge login |
+
+## How we used AI coding tools (hackathon disclosure)
+
+**Product runtime does not call OpenAI / Anthropic / Codex.** Insight ranking
+is deterministic (`impact × confidence × urgency` over YAML rules). Codex and GPT 5.6 were
+used as a **development partner**, not as an inference API.
+
+### What we actually used
+
+| Tool | Role in this build |
+|---|---|
+| **Codex** (agent / GPT 5.6) | Primary coding agent across pipeline, dashboard API, insight engine, Vercel serverless packaging, demo DB bootstrap, and docs |
+| Human review | Architecture choices, threshold tuning intent, accepting/rejecting agent diffs, real-store pilot judgment |
+
+### Where Codex helped (concrete areas in this repo)
+
+1. **`invoice-pipeline/`** — OCR/CSV adapters, cleaning contracts, DB models, CLI ingestion paths, and adapter tests.
+2. **`dashboard/`** — FastAPI read APIs + the store UI (`dashboard/frontend/index.html`: Action Center, Revenue, Intelligence, Reports, Admin).
+3. **`ml-models/`** — Forecasting, basket, ABC, elasticity, anomalies wiring into shared tables (local/worker; heavy ML disabled on Vercel).
+4. **`insight-engine/`** — Deterministic ranked actions + feedback weight loop (explicitly **no** external LLM).
+5. **`api/` + `deploy/`** — Vercel FastAPI entry, slim `requirements.txt`, demo SQLite (`deploy/demo_ledger.db`), cold-start bootstrap.
+6. **Docs** — This README, `DEPLOY.md`, and phase READMEs kept aligned with what the code actually does (including honest MAPE / synthetic-data caveats).
+
+---
+
+# Combined build layout
 
 This is the combined output of the first three build phases, packaged
 together as one project. Each phase is a self-contained folder with its
@@ -82,7 +119,7 @@ python3 cli.py nightly-refresh
 python3 cli.py health-check
 
 # Or in-process APScheduler on the API:
-ENABLE_SCHEDULER=1 uvicorn main:app --port 8001
+ENABLE_SCHEDULER=1 uvicorn main:app --port 8000
 ```
 
 Store app **Admin → Monitoring** shows health, recent jobs, and open
