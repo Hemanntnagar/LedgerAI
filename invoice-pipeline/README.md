@@ -48,7 +48,7 @@ python3 cli.py show-errors
 After issuing an API key, push invoices to the dashboard backend:
 
 ```bash
-curl -X POST http://localhost:8001/api/v1/invoices \
+curl -X POST http://localhost:8000/api/v1/invoices \
   -H "Content-Type: application/json" \
   -H "X-API-Key: inv_..." \
   -d '{
@@ -153,16 +153,16 @@ Dashboard (with backend running):
 
 ```bash
 # login → session token
-curl -X POST http://localhost:8001/api/v1/auth/login \
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"owner","password":"secret1"}'
 
 # scoped KPIs (other stores → 403)
-curl 'http://localhost:8001/api/kpis?start_date=2026-07-01&end_date=2026-07-31' \
+curl 'http://localhost:8000/api/kpis?start_date=2026-07-01&end_date=2026-07-31' \
   -H "Authorization: Bearer st_..."
 
 # generate report (402 if monthly quota exhausted)
-curl -X POST http://localhost:8001/api/v1/reports \
+curl -X POST http://localhost:8000/api/v1/reports \
   -H "Authorization: Bearer st_..." \
   -H 'Content-Type: application/json' \
   -d '{"period_start":"2026-07-01","period_end":"2026-07-31","period_type":"monthly"}'
@@ -204,12 +204,12 @@ Dashboard / POS:
 
 ```bash
 # lookup at checkout (API key or store session)
-curl 'http://localhost:8001/api/v1/loyalty/lookup?phone=9876543210' \
+curl 'http://localhost:8000/api/v1/loyalty/lookup?phone=9876543210' \
   -H "X-API-Key: inv_..."
 
-curl http://localhost:8001/api/v1/loyalty/rewards -H "X-API-Key: inv_..."
+curl http://localhost:8000/api/v1/loyalty/rewards -H "X-API-Key: inv_..."
 
-curl -X POST http://localhost:8001/api/v1/loyalty/redeem \
+curl -X POST http://localhost:8000/api/v1/loyalty/redeem \
   -H "X-API-Key: inv_..." \
   -H 'Content-Type: application/json' \
   -d '{"phone":"9876543210","reward_code":"DISCOUNT5"}'

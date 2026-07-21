@@ -4,18 +4,12 @@ This is the combined output of the first three build phases, packaged
 together as one project. Each phase is a self-contained folder with its
 own README, but they share the same underlying database.
 
-> **Deploy the Ledger store app on Vercel:** see [`DEPLOY.md`](DEPLOY.md).
-> Demo login after deploy: `owner` / `demo1234`.
-
 ```
 invoice-analytics-platform/
 ├── invoice-pipeline/     Phase 1 — ingestion (CSV/PDF/OCR -> normalized DB)
 ├── dashboard/            Phase 2 — read-only analytics dashboard (FastAPI + HTML/Chart.js)
 ├── ml-models/            Phase 3 — forecasting, basket, ABC, elasticity, anomalies, + Step 5 modules
-├── insight-engine/       Step 6 — deterministic ranked actions (+ Step 7 feedback weights)
-├── api/                  Vercel FastAPI entry (api/index.py)
-├── public/               Static Ledger UI for Vercel CDN
-└── deploy/               Demo DB builder + serverless bootstrap
+└── insight-engine/       Step 6 — deterministic ranked actions (+ Step 7 feedback weights)
 ```
 
 ## Recommended setup order
@@ -88,7 +82,7 @@ python3 cli.py nightly-refresh
 python3 cli.py health-check
 
 # Or in-process APScheduler on the API:
-ENABLE_SCHEDULER=1 uvicorn main:app --port 8001
+ENABLE_SCHEDULER=1 uvicorn main:app --port 8000
 ```
 
 Store app **Admin → Monitoring** shows health, recent jobs, and open
