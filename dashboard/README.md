@@ -18,8 +18,12 @@ export INVOICE_PIPELINE_ROOT=/path/to/invoice-pipeline
 export INVOICE_DB_URL="sqlite:////path/to/invoice-pipeline/invoice_pipeline.db"
 # (or a postgresql+psycopg2://... URL if you've moved to Postgres)
 
-python3 -m uvicorn main:app --reload --port 8000
+python3 -m uvicorn main:app --reload --port 8001
 ```
+
+> Port **8001** matches the frontend `API_BASE` default. Use another port only
+> if you also change `API_BASE` in `frontend/index.html` (port 8000 is often
+> already taken by other local apps).
 
 ### 2. Frontend
 
@@ -29,8 +33,13 @@ python3 -m http.server 8080
 ```
 
 Open `http://localhost:8080/index.html`. It talks to the backend at
-`http://localhost:8000` by default (see the `API_BASE` constant at the top
-of `index.html` if you need to point it elsewhere, e.g. after deploying).
+`http://localhost:8001` by default (see the `API_BASE` constant in
+`index.html` if you need to point it elsewhere, e.g. after deploying).
+
+### Deploy on Vercel
+
+See [`../DEPLOY.md`](../DEPLOY.md). The UI is copied to `public/` and the
+API is served from `api/index.py` (bundled demo DB + serverless guards).
 
 ## What's implemented
 
@@ -73,7 +82,7 @@ that store — cross-store access returns 403.
 python3 cli.py rollup-revenue
 
 # Day / week / month (prefers facts when present)
-curl 'http://localhost:8000/api/revenue?start_date=2026-06-01&end_date=2026-07-31&granularity=week'
+curl 'http://localhost:8001/api/revenue?start_date=2026-06-01&end_date=2026-07-31&granularity=week'
 ```
 
 The Sales Trend panel has a **Day / Week / Month** toggle that calls this
@@ -85,7 +94,7 @@ Pro stores only (`features_json.loyalty`). Lookup / redeem accept either a
 dashboard session or the POS `X-API-Key`.
 
 ```bash
-curl 'http://localhost:8000/api/v1/loyalty/lookup?phone=9876543210' \
+curl 'http://localhost:8001/api/v1/loyalty/lookup?phone=9876543210' \
   -H "Authorization: Bearer st_..."
 ```
 
@@ -112,12 +121,12 @@ vs the previous snapshot and tallies of prior-period action feedback.
 
 ```bash
 # Mark an action useful → raises that action_type weight next run
-curl -X PATCH http://localhost:8000/api/v1/insights/<id>/feedback \
+curl -X PATCH http://localhost:8001/api/v1/insights/<id>/feedback \
   -H "Authorization: Bearer st_..." \
   -H "Content-Type: application/json" \
   -d '{"feedback":"useful","status":"accepted"}'
 
-curl http://localhost:8000/api/v1/reports -H "Authorization: Bearer st_..."
+curl http://localhost:8001/api/v1/reports -H "Authorization: Bearer st_..."
 ```
 
 
@@ -129,10 +138,10 @@ Intelligence tabs call `/api/v1/ml/*`. Admin rotates the POS key with
 
 ```bash
 # ML summary for the signed-in store
-curl http://localhost:8000/api/v1/ml/summary -H "Authorization: Bearer st_..."
+curl http://localhost:8001/api/v1/ml/summary -H "Authorization: Bearer st_..."
 
 # Rotate POS API key
-curl -X POST http://localhost:8000/api/v1/admin/api-key \
+curl -X POST http://localhost:8001/api/v1/admin/api-key \
   -H "Authorization: Bearer st_..."
 ```
 
@@ -151,7 +160,7 @@ curl -X POST http://localhost:8000/api/v1/admin/api-key \
 cd ../ml-models && python3 cli.py nightly-refresh
 
 # Optional in-process scheduler (02:00 Asia/Kolkata by default):
-ENABLE_SCHEDULER=1 python3 -m uvicorn main:app --port 8000
+ENABLE_SCHEDULER=1 python3 -m uvicorn main:app --port 8001
 ```
 
 Thresholds: `invoice-pipeline/config/monitoring.yaml`.
