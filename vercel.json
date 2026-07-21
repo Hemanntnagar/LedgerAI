@@ -3,8 +3,7 @@
   "buildCommand": "python deploy/vercel_build.py",
   "functions": {
     "api/index.py": {
-      "maxDuration": 30,
-      "excludeFiles": "{**/.venv/**,**/__pycache__/**,**/*.pyc,**/.pytest_cache/**,**/tests/**,**/*.md,invoice-pipeline/tests/**,ml-models/tests/**,insight-engine/tests/**,dashboard/backend/tests/**}"
+      "maxDuration": 30
     }
   }
 }
