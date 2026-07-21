@@ -38,13 +38,16 @@ def login(body: LoginRequest):
         except PermissionError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         session.commit()
+        expires = None
+        if ctx.session is not None and ctx.session.expires_at is not None:
+            expires = ctx.session.expires_at.isoformat() + "Z"
         return LoginResponse(
             token=ctx.raw_token,
             store_id=ctx.store.store_id,
             store_name=ctx.store.store_name,
             username=ctx.user.username,
             plan=ctx.subscription.plan if ctx.subscription else None,
-            expires_at=ctx.session.expires_at.isoformat() + "Z",
+            expires_at=expires,
         )
     except HTTPException:
         session.rollback()

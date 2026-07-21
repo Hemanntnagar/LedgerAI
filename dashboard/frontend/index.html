@@ -578,8 +578,10 @@ async function api(path, { method = 'GET', params, body } = {}) {
   const resp = await fetch(url, opts);
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    const detail = data.detail || data.message || ('HTTP ' + resp.status);
-    const err = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+    let detail = data.detail || data.message || ('HTTP ' + resp.status);
+    if (typeof detail !== 'string') detail = JSON.stringify(detail);
+    if (resp.status === 401) detail = 'Session expired — please sign in again';
+    const err = new Error(detail);
     err.status = resp.status;
     throw err;
   }

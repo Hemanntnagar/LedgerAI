@@ -76,7 +76,10 @@ def _ensure_database() -> None:
     dest = Path(os.environ.get("LEDGER_TMP_DB", "/tmp/ledger_demo.db"))
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    if bundled.is_file() and bundled.stat().st_size > 0:
+    # Never overwrite an existing /tmp DB — that wiped login sessions on every
+    # warm restart / concurrent import. Cold starts get an empty /tmp, so the
+    # bundled demo is copied once; signed session tokens survive further resets.
+    if (not dest.is_file() or dest.stat().st_size == 0) and bundled.is_file() and bundled.stat().st_size > 0:
         shutil.copy2(bundled, dest)
     elif not dest.is_file():
         # Empty file so SQLAlchemy can open it; tables may be missing.

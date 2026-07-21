@@ -75,6 +75,8 @@ LEDGER_SERVERLESS=1 VERCEL=1 \
 
 ## Limits (honest)
 
-- Report **Generate**, Admin **Refresh ML**, and Pilot **backtest/tune** return HTTP 501 on Vercel.
-- SQLite on `/tmp` resets on cold starts — fine for judges clicking around; use Postgres for persistence.
+- Report **Generate**, Admin **Refresh ML**, and Pilot **backtest/tune** return HTTP 501 on Vercel
+  (disabled on serverless — not a crash). Browse Action Center / Revenue / Intelligence instead.
+- Login uses **signed session tokens** so auth survives `/tmp` SQLite cold-start resets.
+  Feedback / other writes to SQLite can still reset on cold start; use Postgres for durability.
 - Full forecasting / OCR stays a local or worker concern (`ml-models/`, `invoice-pipeline/`).
