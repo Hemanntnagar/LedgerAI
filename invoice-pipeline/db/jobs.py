@@ -16,18 +16,59 @@ def start_job(
     store_id: Optional[str] = None,
     triggered_by: str = "cli",
     detail: Optional[dict] = None,
+    status: str = "running",
 ) -> JobRun:
     row = JobRun(
         job_type=job_type,
         store_id=store_id,
-        status="running",
-        started_at=datetime.utcnow(),
+        status=status,
+        started_at=datetime.utcnow() if status == "running" else None,
         detail_json=detail,
         triggered_by=triggered_by,
     )
     session.add(row)
     session.flush()
     return row
+
+
+def enqueue_job(
+    session,
+    job_type: str,
+    *,
+    store_id: Optional[str] = None,
+    triggered_by: str = "api",
+    detail: Optional[dict] = None,
+) -> JobRun:
+    """Create a queued job for the background worker to claim."""
+    return start_job(
+        session,
+        job_type,
+        store_id=store_id,
+        triggered_by=triggered_by,
+        detail=detail,
+        status="queued",
+    )
+
+
+def claim_next_queued_job(
+    session,
+    *,
+    job_types: Optional[list[str]] = None,
+) -> Optional[JobRun]:
+    """
+    Atomically claim the oldest queued job (SQLite / Postgres).
+    Sets status=running and started_at.
+    """
+    q = session.query(JobRun).filter(JobRun.status == "queued")
+    if job_types:
+        q = q.filter(JobRun.job_type.in_(job_types))
+    job = q.order_by(JobRun.job_id.asc()).first()
+    if not job:
+        return None
+    job.status = "running"
+    job.started_at = datetime.utcnow()
+    session.flush()
+    return job
 
 
 def finish_job(

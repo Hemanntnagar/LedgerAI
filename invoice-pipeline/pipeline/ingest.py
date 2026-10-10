@@ -330,7 +330,16 @@ def ingest_invoice(session, raw: RawInvoiceData, thresholds: dict) -> str:
     return "loaded"
 
 
-def ingest_file(file_path: str, source_type: str, mapping_profile: str = "default") -> IngestResult:
+def ingest_file(
+    file_path: str,
+    source_type: str,
+    mapping_profile: str = "default",
+    force_store_name: Optional[str] = None,
+) -> IngestResult:
+    """
+    Ingest a file. When force_store_name is set (browser upload), every invoice
+    is attributed to that store regardless of the Store column in the file.
+    """
     result = IngestResult(file_path=file_path)
     thresholds = load_thresholds()
 
@@ -351,6 +360,8 @@ def ingest_file(file_path: str, source_type: str, mapping_profile: str = "defaul
     result.invoices_found = len(raw_invoices)
 
     for raw in raw_invoices:
+        if force_store_name:
+            raw.store_name = force_store_name
         session = get_session()
         try:
             outcome = ingest_invoice(session, raw, thresholds)

@@ -13,7 +13,16 @@ from sqlalchemy.orm import sessionmaker
 
 from db.models import Base
 
-DB_URL = os.environ.get("INVOICE_DB_URL", "sqlite:///./invoice_pipeline.db")
+def _normalize_db_url(url: str) -> str:
+    """Render/Heroku give postgres://; SQLAlchemy + psycopg2 want postgresql+psycopg2://."""
+    if url.startswith("postgres://"):
+        return "postgresql+psycopg2://" + url[len("postgres://") :]
+    if url.startswith("postgresql://") and "+psycopg2" not in url.split("://", 1)[0]:
+        return "postgresql+psycopg2://" + url[len("postgresql://") :]
+    return url
+
+
+DB_URL = _normalize_db_url(os.environ.get("INVOICE_DB_URL", "sqlite:///./invoice_pipeline.db"))
 
 # check_same_thread only needed for SQLite
 connect_args = {"check_same_thread": False} if DB_URL.startswith("sqlite") else {}

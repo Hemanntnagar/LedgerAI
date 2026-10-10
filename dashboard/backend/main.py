@@ -7,11 +7,14 @@ present (Step 2), store_id is forced to that store — tenants cannot
 read each other's data. Unauthenticated access remains available for
 local demo / admin use.
 """
+import os
 from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from dbconn import get_session, Store
 import queries
@@ -24,6 +27,7 @@ from ml_api import router as ml_router
 from admin_api import router as admin_router
 from monitoring_api import router as monitoring_router
 from pilot_api import router as pilot_router
+from upload_api import router as upload_router
 from tenant_auth import scope_store_id
 
 app = FastAPI(title="Invoice Analytics Dashboard API")
@@ -43,6 +47,28 @@ app.include_router(ml_router)
 app.include_router(admin_router)
 app.include_router(monitoring_router)
 app.include_router(pilot_router)
+app.include_router(upload_router)
+
+_FRONTEND_DIR = os.environ.get(
+    "LEDGER_FRONTEND_DIR",
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "frontend",
+    ),
+)
+_FRONTEND_INDEX = os.path.join(_FRONTEND_DIR, "index.html")
+
+
+@app.get("/")
+def serve_frontend_index():
+    """Serve the store UI from the same origin as the API (local / Render)."""
+    if os.path.isfile(_FRONTEND_INDEX):
+        return FileResponse(_FRONTEND_INDEX, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Frontend not found")
+
+
+if os.path.isdir(_FRONTEND_DIR):
+    app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="frontend-static")
 
 
 @app.on_event("startup")

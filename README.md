@@ -9,7 +9,19 @@ monthly reports — backed by a shared invoice database.
 | Link | Purpose |
 |---|---|
 | [Repo](https://github.com/Hemanntnagar/Ledger) | Source (this README) |
-| [DEPLOY.md](DEPLOY.md) | Vercel demo deploy + judge login |
+| [DEPLOY.md](DEPLOY.md) | Local / Render (full dynamic) + Vercel demo |
+
+## Quick start (local dynamic)
+
+```bash
+chmod +x scripts/dev.sh
+./scripts/dev.sh
+# → http://127.0.0.1:8000/
+```
+
+Create a store on the login screen, upload invoices under **Ingest**, then
+**Run analytics now** (rollup + ML + Action Center). Demo login on the
+bundled Vercel DB remains `owner` / `demo1234`.
 
 ## How we used AI coding tools (hackathon disclosure)
 
@@ -76,8 +88,9 @@ insight engine.
 ## Step 8 — Store app UI (single place)
 
 [`dashboard/frontend/index.html`](dashboard/frontend/index.html) is now
-the daily store app: login → **Action Center** (ranked actions +
-feedback), Revenue (D/W/M), Intelligence (ML tables), Loyalty, Reports
+the daily store app: register/login → **Ingest** (upload invoices) →
+**Action Center** (ranked actions + feedback), Revenue (D/W/M),
+Intelligence (ML tables), Loyalty, Reports
 (generate + MoM list), and Admin (subscription + POS API key rotate).
 
 ML read APIs: `GET /api/v1/ml/{forecast,bundles,pricing,inventory,customers,festivals}`.

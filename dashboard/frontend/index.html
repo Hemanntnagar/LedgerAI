@@ -276,6 +276,17 @@
   .login-card p { color: var(--muted); margin: 0 0 24px; font-size: 13.5px; }
   .login-card .btn { width: 100%; margin-top: 8px; }
   .login-error { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 1.2em; }
+  .login-toggle { text-align: center; margin-top: 16px; font-size: 13px; color: var(--muted); }
+  .login-toggle button { background: none; border: none; color: var(--teal); cursor: pointer; font: inherit; text-decoration: underline; padding: 0; }
+
+  .dropzone {
+    border: 2px dashed var(--rule); border-radius: 12px; padding: 28px 20px; text-align: center;
+    background: var(--paper); color: var(--muted); font-size: 14px; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .dropzone.dragover { border-color: var(--teal); background: rgba(47,111,98,0.06); color: var(--ink); }
+  .dropzone strong { color: var(--ink); display: block; margin-bottom: 6px; }
+  .upload-meta { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
   .hidden { display: none !important; }
 
@@ -290,17 +301,41 @@
 <div id="login-screen" class="login-screen">
   <div class="login-card">
     <div class="brand">Ledger</div>
-    <p>Sign in to your store — actions, revenue, loyalty, and reports in one place.</p>
-    <div class="field">
-      <label>Username</label>
-      <input id="login-user" type="text" autocomplete="username" placeholder="store owner">
+    <p id="auth-tagline">Sign in to your store — actions, revenue, loyalty, and reports in one place.</p>
+    <div id="login-fields">
+      <div class="field">
+        <label>Username</label>
+        <input id="login-user" type="text" autocomplete="username" placeholder="store owner">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="btn" id="login-btn">Sign in</button>
     </div>
-    <div class="field">
-      <label>Password</label>
-      <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+    <div id="register-fields" class="hidden">
+      <div class="field">
+        <label>Store name</label>
+        <input id="reg-store" type="text" autocomplete="organization" placeholder="Corner Kirana">
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input id="reg-user" type="text" autocomplete="username" placeholder="owner">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="reg-pass" type="password" autocomplete="new-password" placeholder="at least 6 characters">
+      </div>
+      <div class="field">
+        <label>Location <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <input id="reg-location" type="text" placeholder="Pune">
+      </div>
+      <button class="btn" id="register-btn">Create store</button>
     </div>
-    <button class="btn" id="login-btn">Sign in</button>
     <div class="login-error" id="login-error"></div>
+    <div class="login-toggle" id="auth-mode-toggle">
+      New store? <button type="button" id="show-register">Create an account</button>
+    </div>
   </div>
 </div>
 
@@ -313,6 +348,7 @@
       <div class="nav-brand">Ledger</div>
       <div class="nav-brand-sub">Store App</div>
       <button class="nav-item active" data-view="actions" role="menuitem">Action Center</button>
+      <button class="nav-item" data-view="ingest" role="menuitem">Ingest</button>
       <button class="nav-item" data-view="revenue" role="menuitem">Revenue</button>
       <button class="nav-item" data-view="intelligence" role="menuitem">Intelligence</button>
       <button class="nav-item" data-view="loyalty" role="menuitem">Loyalty</button>
@@ -345,6 +381,30 @@
         <div class="last-updated" id="actions-updated"></div>
       </div>
       <div id="actions-list"><div class="empty-state">Loading…</div></div>
+    </section>
+
+    <!-- INGEST -->
+    <section class="view" id="view-ingest">
+      <h2 class="view-title">Ingest invoices</h2>
+      <p class="view-sub">Upload CSV, JSON, or PDF exports. Files are attributed to your store only, then you can run analytics.</p>
+      <div class="panel-grid">
+        <div class="panel">
+          <h3>Upload file</h3>
+          <p class="subtitle">Drag and drop or click to choose. Sample CSV available in the repo under <span class="num">invoice-pipeline/tests/fixtures/sample_invoices.csv</span>.</p>
+          <div class="dropzone" id="upload-dropzone" tabindex="0" role="button" aria-label="Upload invoice file">
+            <strong>Drop invoice file here</strong>
+            CSV · JSON · PDF · image (OCR)
+            <div class="upload-meta" id="upload-filename"></div>
+          </div>
+          <input type="file" id="upload-input" accept=".csv,.json,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp" class="hidden">
+          <div class="form-row" style="margin-top:14px">
+            <button class="btn" id="upload-btn" disabled>Upload</button>
+            <button class="btn secondary" id="run-analytics-btn">Run analytics now</button>
+          </div>
+          <div id="upload-flash" style="margin-top:12px"></div>
+          <div id="upload-result" style="margin-top:8px"></div>
+        </div>
+      </div>
     </section>
 
     <!-- REVENUE -->
@@ -527,8 +587,13 @@
 </div>
 
 <script>
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-  ? 'http://localhost:8001'
+// Same-origin when served by FastAPI (:8000) or production; otherwise point at local API.
+const API_BASE = (
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  && window.location.port !== '8000'
+  && window.location.port !== ''
+)
+  ? 'http://localhost:8000'
   : '';
 const COLORS = ['#2f6f62', '#c1793a', '#6b675f', '#8a9a5b', '#b5473a', '#4a7c8c', '#d9a441', '#7a6a8a'];
 const TOKEN_KEY = 'ledger_store_token';
@@ -620,6 +685,35 @@ async function tryRestoreSession() {
   }
 }
 
+let authMode = 'login';
+let pendingUploadFile = null;
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const isReg = mode === 'register';
+  document.getElementById('login-fields').classList.toggle('hidden', isReg);
+  document.getElementById('register-fields').classList.toggle('hidden', !isReg);
+  document.getElementById('auth-tagline').textContent = isReg
+    ? 'Create a store account — then upload invoices and unlock your Action Center.'
+    : 'Sign in to your store — actions, revenue, loyalty, and reports in one place.';
+  document.getElementById('auth-mode-toggle').innerHTML = isReg
+    ? 'Already have an account? <button type="button" id="show-login">Sign in</button>'
+    : 'New store? <button type="button" id="show-register">Create an account</button>';
+  document.getElementById('login-error').textContent = '';
+  const toggleBtn = document.getElementById(isReg ? 'show-login' : 'show-register');
+  if (toggleBtn) toggleBtn.addEventListener('click', () => setAuthMode(isReg ? 'login' : 'register'));
+}
+
+function applyAuthSession(res) {
+  setAuth({
+    store_id: res.store_id,
+    store_name: res.store_name,
+    username: res.username,
+    plan: res.plan,
+  }, res.token);
+  showApp(true);
+}
+
 async function doLogin() {
   const username = document.getElementById('login-user').value.trim();
   const password = document.getElementById('login-pass').value;
@@ -627,16 +721,28 @@ async function doLogin() {
   errEl.textContent = '';
   try {
     const res = await api('/api/v1/auth/login', { method: 'POST', body: { username, password } });
-    setAuth({
-      store_id: res.store_id,
-      store_name: res.store_name,
-      username: res.username,
-      plan: res.plan,
-    }, res.token);
-    showApp(true);
+    applyAuthSession(res);
     await loadView('actions');
   } catch (e) {
     errEl.textContent = e.message || 'Login failed';
+  }
+}
+
+async function doRegister() {
+  const store_name = document.getElementById('reg-store').value.trim();
+  const username = document.getElementById('reg-user').value.trim();
+  const password = document.getElementById('reg-pass').value;
+  const location = document.getElementById('reg-location').value.trim();
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const body = { store_name, username, password };
+    if (location) body.location = location;
+    const res = await api('/api/v1/auth/register', { method: 'POST', body });
+    applyAuthSession(res);
+    await loadView('ingest');
+  } catch (e) {
+    errEl.textContent = e.message || 'Registration failed';
   }
 }
 
@@ -644,6 +750,69 @@ async function doLogout() {
   try { await api('/api/v1/auth/logout', { method: 'POST' }); } catch (_) {}
   setAuth(null);
   showApp(false);
+}
+
+function setPendingUpload(file) {
+  pendingUploadFile = file || null;
+  document.getElementById('upload-btn').disabled = !pendingUploadFile;
+  document.getElementById('upload-filename').textContent = pendingUploadFile
+    ? pendingUploadFile.name + ' · ' + Math.round(pendingUploadFile.size / 1024) + ' KB'
+    : '';
+}
+
+async function uploadInvoiceFile() {
+  const flash = document.getElementById('upload-flash');
+  const resultEl = document.getElementById('upload-result');
+  if (!pendingUploadFile) return;
+  flash.innerHTML = `<div class="flash">Uploading…</div>`;
+  resultEl.innerHTML = '';
+  try {
+    const fd = new FormData();
+    fd.append('file', pendingUploadFile, pendingUploadFile.name);
+    const headers = {};
+    const t = localStorage.getItem(TOKEN_KEY);
+    if (t) headers['Authorization'] = 'Bearer ' + t;
+    const resp = await fetch((API_BASE || '') + '/api/v1/uploads/invoices', {
+      method: 'POST',
+      headers,
+      body: fd,
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      let detail = data.detail || ('HTTP ' + resp.status);
+      if (typeof detail !== 'string') detail = JSON.stringify(detail);
+      throw Object.assign(new Error(detail), { status: resp.status });
+    }
+    flash.innerHTML = `<div class="flash">Loaded ${data.invoices_loaded} of ${data.invoices_found} invoices`
+      + (data.invoices_skipped_duplicate ? ` · ${data.invoices_skipped_duplicate} duplicates skipped` : '')
+      + (data.invoices_failed_validation ? ` · ${data.invoices_failed_validation} failed validation` : '')
+      + `</div>`;
+    const errList = (data.errors || []).slice(0, 5).map(e => `<li>${escapeHtml(e)}</li>`).join('');
+    resultEl.innerHTML = errList
+      ? `<ul class="subtitle" style="margin:0;padding-left:18px">${errList}</ul>`
+      : `<p class="subtitle">Next: click <strong>Run analytics now</strong> to refresh revenue facts, ML, and Action Center.</p>`;
+    setPendingUpload(null);
+    document.getElementById('upload-input').value = '';
+  } catch (e) {
+    if (e.status === 401) { doLogout(); return; }
+    flash.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function runAnalyticsNow() {
+  const flash = document.getElementById('upload-flash');
+  flash.innerHTML = `<div class="flash">Running rollup + ML + insights… this can take a minute.</div>`;
+  try {
+    const res = await api('/api/v1/monitoring/refresh?skip_forecast=true&include_rollup=true', { method: 'POST' });
+    if (res.status === 'queued') {
+      flash.innerHTML = `<div class="flash">Queued job ${escapeHtml(res.job_id || '')}. Poll Admin → Jobs for status.</div>`;
+      return;
+    }
+    flash.innerHTML = `<div class="flash">Done · ${escapeHtml(res.status)} · job ${escapeHtml(res.job_id || '')}</div>`;
+    await loadView('actions');
+  } catch (e) {
+    flash.innerHTML = `<div class="flash err">${escapeHtml(e.message)}</div>`;
+  }
 }
 
 function switchView(name) {
@@ -680,6 +849,7 @@ function toggleNavMenu() {
 async function loadView(name) {
   try {
     if (name === 'actions') await loadInsights();
+    else if (name === 'ingest') { /* upload UI is static */ }
     else if (name === 'revenue') await loadDashboard();
     else if (name === 'intelligence') await loadIntelligence();
     else if (name === 'loyalty') await loadLoyaltyRewards();
@@ -1235,7 +1405,29 @@ async function runPilotBacktest() {
 /* ---- Wire events ---- */
 document.getElementById('login-btn').addEventListener('click', doLogin);
 document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('register-btn').addEventListener('click', doRegister);
+document.getElementById('reg-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+document.getElementById('show-register').addEventListener('click', () => setAuthMode('register'));
 document.getElementById('logout-btn').addEventListener('click', doLogout);
+
+const dropzone = document.getElementById('upload-dropzone');
+const uploadInput = document.getElementById('upload-input');
+dropzone.addEventListener('click', () => uploadInput.click());
+dropzone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); uploadInput.click(); } });
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) setPendingUpload(f);
+});
+uploadInput.addEventListener('change', () => {
+  const f = uploadInput.files && uploadInput.files[0];
+  if (f) setPendingUpload(f);
+});
+document.getElementById('upload-btn').addEventListener('click', uploadInvoiceFile);
+document.getElementById('run-analytics-btn').addEventListener('click', runAnalyticsNow);
 document.getElementById('nav-trigger').addEventListener('click', (e) => {
   e.stopPropagation();
   toggleNavMenu();

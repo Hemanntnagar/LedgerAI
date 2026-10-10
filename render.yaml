@@ -1,0 +1,52 @@
+# Render Blueprint — full dynamic Ledger (API + ML worker + Postgres)
+# https://render.com/docs/blueprint-spec
+#
+# After deploy:
+#   1. Confirm LEDGER_SESSION_SECRET on web (+ optional sync to worker)
+#   2. From a one-off shell: cd invoice-pipeline && python cli.py init-db-cmd
+#   3. Open the web service URL and register a store
+
+services:
+  - type: web
+    name: ledger-api
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r dashboard/backend/requirements.txt -r invoice-pipeline/requirements.txt -r ml-models/requirements.txt -r insight-engine/requirements.txt && pip install psycopg2-binary python-multipart
+    startCommand: bash scripts/start_api.sh
+    envVars:
+      - key: INVOICE_DB_URL
+        fromDatabase:
+          name: ledger-db
+          property: connectionString
+      - key: ANALYTICS_ASYNC
+        value: "1"
+      - key: ENABLE_SCHEDULER
+        value: "0"
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: LEDGER_SESSION_SECRET
+        generateValue: true
+
+  - type: worker
+    name: ledger-worker
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r dashboard/backend/requirements.txt -r invoice-pipeline/requirements.txt -r ml-models/requirements.txt -r insight-engine/requirements.txt && pip install psycopg2-binary
+    startCommand: bash scripts/start_worker.sh
+    envVars:
+      - key: INVOICE_DB_URL
+        fromDatabase:
+          name: ledger-db
+          property: connectionString
+      - key: WORKER_POLL_SECONDS
+        value: "5"
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: LEDGER_SESSION_SECRET
+        sync: false
+
+databases:
+  - name: ledger-db
+    plan: free
+    databaseName: ledger
+    user: ledger

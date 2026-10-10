@@ -1,5 +1,5 @@
 """
-Store login / logout / me (Step 2).
+Store login / logout / me / register (Step 2 + multi-store signup).
 """
 from typing import Optional
 
@@ -17,6 +17,13 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=6)
 
 
+class RegisterRequest(BaseModel):
+    store_name: str = Field(min_length=2, max_length=120)
+    username: str = Field(min_length=2, max_length=64)
+    password: str = Field(min_length=6, max_length=128)
+    location: Optional[str] = Field(None, max_length=120)
+
+
 class LoginResponse(BaseModel):
     token: str
     token_type: str = "bearer"
@@ -25,6 +32,53 @@ class LoginResponse(BaseModel):
     username: str
     plan: Optional[str] = None
     expires_at: Optional[str] = None
+
+
+def _login_response(ctx) -> LoginResponse:
+    expires = None
+    if ctx.session is not None and ctx.session.expires_at is not None:
+        expires = ctx.session.expires_at.isoformat() + "Z"
+    return LoginResponse(
+        token=ctx.raw_token,
+        store_id=ctx.store.store_id,
+        store_name=ctx.store.store_name,
+        username=ctx.user.username,
+        plan=ctx.subscription.plan if ctx.subscription else None,
+        expires_at=expires,
+    )
+
+
+@router.post("/register", response_model=LoginResponse)
+def register(body: RegisterRequest):
+    """Create a new store + owner account and return a session token."""
+    from db.store_auth import login as do_login, register_store
+
+    session = get_session()
+    try:
+        try:
+            register_store(
+                session,
+                store_name=body.store_name,
+                username=body.username,
+                password=body.password,
+                location=body.location,
+            )
+            session.commit()
+        except ValueError as exc:
+            session.rollback()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        ctx = do_login(session, username=body.username, password=body.password)
+        session.commit()
+        return _login_response(ctx)
+    except HTTPException:
+        session.rollback()
+        raise
+    except Exception as exc:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    finally:
+        session.close()
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -38,17 +92,7 @@ def login(body: LoginRequest):
         except PermissionError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         session.commit()
-        expires = None
-        if ctx.session is not None and ctx.session.expires_at is not None:
-            expires = ctx.session.expires_at.isoformat() + "Z"
-        return LoginResponse(
-            token=ctx.raw_token,
-            store_id=ctx.store.store_id,
-            store_name=ctx.store.store_name,
-            username=ctx.user.username,
-            plan=ctx.subscription.plan if ctx.subscription else None,
-            expires_at=expires,
-        )
+        return _login_response(ctx)
     except HTTPException:
         session.rollback()
         raise

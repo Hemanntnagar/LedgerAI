@@ -7,7 +7,19 @@ step required.
 
 ## Running it
 
-### 1. Backend
+### Quick start (recommended)
+
+From the repo root:
+
+```bash
+chmod +x scripts/dev.sh
+./scripts/dev.sh
+```
+
+Open **http://127.0.0.1:8000/** — FastAPI serves the UI and API on the same origin.
+The script initializes a local SQLite DB on first run.
+
+### Manual backend
 
 ```bash
 cd backend
@@ -21,22 +33,8 @@ export INVOICE_DB_URL="sqlite:////path/to/invoice-pipeline/invoice_pipeline.db"
 python3 -m uvicorn main:app --reload --port 8000
 ```
 
-### 2. Frontend
-
-```bash
-cd frontend
-python3 -m http.server 8080
-```
-
-Open `http://localhost:8080/index.html`. It talks to the backend at
-<<<<<<< HEAD
-`http://localhost:8001` by default (see the `API_BASE` constant in
-`index.html` if you need to point it elsewhere).
-=======
-`http://localhost:8000` by default (see the `API_BASE` constant at the top
-of `index.html` if you need to point it elsewhere, e.g. after deploying).
->>>>>>> 83635f97f3082fd0a8883913eb3e92f19af53fb7
-
+Open `http://127.0.0.1:8000/`. If you serve the HTML from another port, it
+talks to the API at `http://localhost:8000` (see `API_BASE` in `index.html`).
 ## What's implemented
 
 All 8 metric endpoints from the spec, each backed by a real SQL aggregation
@@ -55,8 +53,11 @@ query (not pandas post-processing):
 | `GET /api/revenue` | Day / week / month revenue series + totals (facts or live SQL) |
 | `GET /api/stores` | Helper endpoint for the store-selector dropdown |
 | `POST /api/v1/invoices` | Live POS ingest (auth: `X-API-Key`). See invoice-pipeline Step 1. |
+| `POST /api/v1/auth/register` | Create store + owner account → session token |
 | `POST /api/v1/auth/login` | Store dashboard login → session token |
 | `GET /api/v1/auth/me` | Current store user (requires Bearer token) |
+| `POST /api/v1/uploads/invoices` | Browser multipart upload (CSV/JSON/PDF; forced to signed-in store) |
+| `POST /api/v1/monitoring/refresh` | Rollup + ML + insights (or queue when `ANALYTICS_ASYNC=1`) |
 | `GET /api/v1/subscription` | Plan, status, report quota remaining |
 | `POST /api/v1/reports` | Generate report snapshot (checks active sub + monthly quota; Step 7 MAPE + MoM) |
 | `GET /api/v1/reports` | List prior snapshots for the store (newest first, with MoM) |

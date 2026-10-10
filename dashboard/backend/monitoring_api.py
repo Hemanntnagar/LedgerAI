@@ -126,12 +126,58 @@ def ack_alert(
 def trigger_refresh(
     auth: dict = Depends(require_store_auth),
     skip_forecast: bool = Query(False),
+    include_rollup: bool = Query(True, description="Roll up revenue facts before ML"),
 ):
     """
-    Manually trigger an ML refresh for the signed-in store (same path as nightly).
+    Manually trigger analytics for the signed-in store:
+    revenue rollup → ML modules → insight engine (same path as nightly).
+
+    When ANALYTICS_ASYNC=1, enqueues a job for the background worker instead.
     """
     import os
     import sys
+
+    store_id = auth["store_id"]
+    async_mode = os.environ.get("ANALYTICS_ASYNC", "").lower() in ("1", "true", "yes")
+
+    if async_mode:
+        from db.jobs import enqueue_job, job_to_dict
+
+        session = get_session()
+        try:
+            job = enqueue_job(
+                session,
+                "analytics_refresh",
+                store_id=store_id,
+                triggered_by="api",
+                detail={"skip_forecast": skip_forecast, "include_rollup": include_rollup},
+            )
+            session.commit()
+            return {
+                "job_id": job.job_id,
+                "store_id": store_id,
+                "status": "queued",
+                "detail": job_to_dict(job),
+            }
+        except Exception as exc:
+            session.rollback()
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        finally:
+            session.close()
+
+    rollup_result = None
+    if include_rollup:
+        from db.revenue_facts import rollup_revenue_facts
+
+        session = get_session()
+        try:
+            rollup_result = rollup_revenue_facts(session, store_id=store_id)
+            session.commit()
+        except Exception as exc:
+            session.rollback()
+            raise HTTPException(status_code=500, detail=f"rollup failed: {exc}") from exc
+        finally:
+            session.close()
 
     ml_root = os.environ.get(
         "ML_MODELS_ROOT",
@@ -145,10 +191,12 @@ def trigger_refresh(
     from nightly import refresh_store
 
     result = refresh_store(
-        auth["store_id"],
+        store_id,
         triggered_by="api",
         skip_forecast=skip_forecast,
     )
+    if rollup_result is not None:
+        result["rollup"] = rollup_result
     if result.get("status") == "failed":
         raise HTTPException(status_code=500, detail=result.get("error") or "refresh failed")
     return result

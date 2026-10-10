@@ -136,6 +136,56 @@ def parse_signed_token(raw_token: str) -> Optional[dict]:
     return {"user_id": user_id, "session_id": session_id, "exp": exp}
 
 
+def register_store(
+    session,
+    *,
+    store_name: str,
+    username: str,
+    password: str,
+    location: Optional[str] = None,
+):
+    """
+    Create a brand-new store + owner login + Basic subscription.
+    Fails if store_name or username already exists.
+    """
+    from db.models import Store
+    from db.plans import PLAN_BASIC, apply_plan_to_subscription, get_plan, seed_subscription_plans
+
+    name = (store_name or "").strip()
+    if not name:
+        raise ValueError("store_name is required")
+    username = (username or "").strip().lower()
+    if not username:
+        raise ValueError("username is required")
+    if not password or len(password) < 6:
+        raise ValueError("password must be at least 6 characters")
+
+    if session.query(Store).filter_by(store_name=name).first():
+        raise ValueError(f"store name already taken: {name}")
+    if session.query(StoreUser).filter_by(username=username).first():
+        raise ValueError(f"username already taken: {username}")
+
+    store = Store(store_name=name, location=(location or None))
+    session.add(store)
+    session.flush()
+
+    user = create_store_user(
+        session, store_id=store.store_id, username=username, password=password
+    )
+
+    seed_subscription_plans(session)
+    plan = get_plan(session, PLAN_BASIC)
+    sub = Subscription(subscription_id=gen_uuid(), store_id=store.store_id)
+    if plan:
+        apply_plan_to_subscription(sub, plan)
+    else:
+        sub.plan = PLAN_BASIC
+        sub.status = "active"
+    session.add(sub)
+    session.flush()
+    return store, user, sub
+
+
 def create_store_user(
     session,
     *,
