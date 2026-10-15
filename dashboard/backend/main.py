@@ -27,7 +27,6 @@ from ml_api import router as ml_router
 from admin_api import router as admin_router
 from monitoring_api import router as monitoring_router
 from pilot_api import router as pilot_router
-from upload_api import router as upload_router
 from tenant_auth import scope_store_id
 
 app = FastAPI(title="Invoice Analytics Dashboard API")
@@ -47,7 +46,18 @@ app.include_router(ml_router)
 app.include_router(admin_router)
 app.include_router(monitoring_router)
 app.include_router(pilot_router)
-app.include_router(upload_router)
+
+# Upload needs python-multipart; keep auth/API up if the package is missing.
+try:
+    from upload_api import router as upload_router
+
+    app.include_router(upload_router)
+except Exception:
+    import logging
+
+    logging.getLogger("dashboard").exception(
+        "Upload API disabled (install python-multipart for file uploads)"
+    )
 
 _FRONTEND_DIR = os.environ.get(
     "LEDGER_FRONTEND_DIR",
