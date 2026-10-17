@@ -51,6 +51,22 @@ def _login_response(ctx) -> LoginResponse:
 @router.post("/register", response_model=LoginResponse)
 def register(body: RegisterRequest):
     """Create a new store + owner account and return a session token."""
+    import os
+
+    # Ephemeral /tmp SQLite on serverless — new accounts vanish on cold start.
+    # Allow register when a real Postgres URL is configured.
+    db_url = (os.environ.get("INVOICE_DB_URL") or "").strip()
+    ephemeral = os.environ.get("LEDGER_SERVERLESS", "").lower() in ("1", "true", "yes")
+    if ephemeral and not db_url.startswith("postgresql"):
+        raise HTTPException(
+            status_code=501,
+            detail=(
+                "Creating accounts is disabled on the Vercel SQLite demo (database "
+                "resets between cold starts). Sign in with owner / demo1234, set "
+                "INVOICE_DB_URL to Postgres, or use the Render full stack (DEPLOY.md)."
+            ),
+        )
+
     from db.store_auth import login as do_login, register_store
 
     session = get_session()

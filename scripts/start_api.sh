@@ -7,5 +7,14 @@ export INSIGHT_ENGINE_ROOT="${INSIGHT_ENGINE_ROOT:-$ROOT/insight-engine}"
 export LEDGER_FRONTEND_DIR="${LEDGER_FRONTEND_DIR:-$ROOT/dashboard/frontend}"
 export ANALYTICS_ASYNC="${ANALYTICS_ASYNC:-1}"
 export ENABLE_SCHEDULER="${ENABLE_SCHEDULER:-0}"
+
+# Create tables / seed plans when pointed at Postgres (safe to re-run).
+if [[ -n "${INVOICE_DB_URL:-}" ]]; then
+  (
+    cd "$INVOICE_PIPELINE_ROOT"
+    python -c "from db.session import init_db; init_db(); print('db schema ready')"
+  )
+fi
+
 cd "$ROOT/dashboard/backend"
 exec python -m uvicorn main:app --host 0.0.0.0 --port "${PORT:-8000}"

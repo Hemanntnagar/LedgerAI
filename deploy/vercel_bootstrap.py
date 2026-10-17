@@ -76,17 +76,37 @@ def _ensure_database() -> None:
     dest = Path(os.environ.get("LEDGER_TMP_DB", "/tmp/ledger_demo.db"))
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    # Never overwrite an existing /tmp DB — that wiped login sessions on every
-    # warm restart / concurrent import. Cold starts get an empty /tmp, so the
-    # bundled demo is copied once; signed session tokens survive further resets.
-    if (not dest.is_file() or dest.stat().st_size == 0) and bundled.is_file() and bundled.stat().st_size > 0:
+    # Cold starts get an empty /tmp → copy bundled demo once. Keep an existing
+    # /tmp DB across warm imports, but repair if the demo owner is missing
+    # (corrupt / partial file, or a wiped ephemeral copy).
+    need_copy = not dest.is_file() or dest.stat().st_size == 0
+    if not need_copy and bundled.is_file() and not _sqlite_has_demo_owner(dest):
+        need_copy = True
+    if need_copy and bundled.is_file() and bundled.stat().st_size > 0:
         shutil.copy2(bundled, dest)
     elif not dest.is_file():
-        # Empty file so SQLAlchemy can open it; tables may be missing.
         dest.touch()
 
     # Always override — ignore relative sqlite:// URLs that would hit read-only FS.
     os.environ["INVOICE_DB_URL"] = f"sqlite:///{dest}"
+
+
+def _sqlite_has_demo_owner(path: Path) -> bool:
+    """True when the demo login user exists (signed tokens need this row)."""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM store_users WHERE username = ? AND is_active = 1 LIMIT 1",
+                ("owner",),
+            ).fetchone()
+            return row is not None
+        finally:
+            conn.close()
+    except Exception:
+        return False
 
 
 def attach_serverless_guards(app) -> None:

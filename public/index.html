@@ -305,13 +305,17 @@
     <div id="login-fields">
       <div class="field">
         <label>Username</label>
-        <input id="login-user" type="text" autocomplete="username" placeholder="store owner">
+        <input id="login-user" type="text" autocomplete="username" placeholder="owner" value="owner">
       </div>
       <div class="field">
         <label>Password</label>
-        <input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••">
+        <input id="login-pass" type="password" autocomplete="current-password" placeholder="demo1234" value="demo1234">
       </div>
       <button class="btn" id="login-btn">Sign in</button>
+      <p class="subtitle" style="margin:10px 0 0">
+        username = <span class="num">owner</span><br>
+        password = <span class="num">demo1234</span>
+      </p>
     </div>
     <div id="register-fields" class="hidden">
       <div class="field">
@@ -624,8 +628,17 @@ function monthBounds(d = new Date()) {
 function authHeaders() {
   const h = { 'Content-Type': 'application/json' };
   const t = localStorage.getItem(TOKEN_KEY);
-  if (t) h['Authorization'] = 'Bearer ' + t;
+  if (t) {
+    h['Authorization'] = 'Bearer ' + t;
+    h['X-Store-Token'] = t;
+  }
   return h;
+}
+
+function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(AUTH_KEY);
+  auth = null;
 }
 
 async function api(path, { method = 'GET', params, body } = {}) {
@@ -638,14 +651,29 @@ async function api(path, { method = 'GET', params, body } = {}) {
     const s = qs.toString();
     if (s) url += '?' + s;
   }
+  const hadToken = !!localStorage.getItem(TOKEN_KEY);
   const opts = { method, headers: authHeaders() };
   if (body !== undefined) opts.body = JSON.stringify(body);
-  const resp = await fetch(url, opts);
+  let resp;
+  try {
+    resp = await fetch(url, opts);
+  } catch (netErr) {
+    const err = new Error(netErr.message || 'Network error — check your connection');
+    err.status = 0;
+    throw err;
+  }
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     let detail = data.detail || data.message || ('HTTP ' + resp.status);
     if (typeof detail !== 'string') detail = JSON.stringify(detail);
-    if (resp.status === 401) detail = 'Session expired — please sign in again';
+    // Only treat 401 as "session expired" when we actually sent a store token.
+    // Login/register 401s (bad password) must keep the API detail.
+    const isAuthEndpoint = path.indexOf('/api/v1/auth/login') === 0
+      || path.indexOf('/api/v1/auth/register') === 0;
+    if (resp.status === 401 && hadToken && !isAuthEndpoint) {
+      detail = 'Session expired — please sign in again (demo: owner / demo1234)';
+      clearSession();
+    }
     const err = new Error(detail);
     err.status = resp.status;
     throw err;
@@ -674,14 +702,15 @@ function setAuth(info, token) {
 
 async function tryRestoreSession() {
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return false;
+  if (!token) return { ok: false, reason: null };
   try {
     const me = await api('/api/v1/auth/me');
     setAuth(me, token);
-    return true;
-  } catch {
-    setAuth(null);
-    return false;
+    return { ok: true, reason: null };
+  } catch (e) {
+    // Only drop the token on auth failure — keep it for transient network/5xx.
+    if (e.status === 401) clearSession();
+    return { ok: false, reason: e.status === 401 ? 'expired' : (e.message || 'restore_failed') };
   }
 }
 
@@ -746,10 +775,14 @@ async function doRegister() {
   }
 }
 
-async function doLogout() {
+async function doLogout(message) {
   try { await api('/api/v1/auth/logout', { method: 'POST' }); } catch (_) {}
   setAuth(null);
   showApp(false);
+  if (message) {
+    const errEl = document.getElementById('login-error');
+    if (errEl) errEl.textContent = message;
+  }
 }
 
 function setPendingUpload(file) {
@@ -857,7 +890,9 @@ async function loadView(name) {
     else if (name === 'admin') await loadAdmin();
   } catch (e) {
     console.error(e);
-    if (e.status === 401) { doLogout(); }
+    if (e.status === 401) {
+      doLogout(e.message || 'Session expired — please sign in again (demo: owner / demo1234)');
+    }
   }
 }
 
@@ -896,6 +931,7 @@ async function loadInsights() {
       </div>
     `).join('');
   } catch (e) {
+    if (e.status === 401) throw e;
     el.innerHTML = `<div class="empty-state">Error: ${escapeHtml(e.message)}</div>`;
   }
 }
@@ -1498,9 +1534,17 @@ document.getElementById('admin-alerts').addEventListener('click', async (e) => {
   const mb = monthBounds();
   document.getElementById('report-start').value = mb.start;
   document.getElementById('report-end').value = mb.end;
-  const ok = await tryRestoreSession();
-  showApp(ok);
-  if (ok) await loadView('actions');
+  const hadToken = !!localStorage.getItem(TOKEN_KEY);
+  const restored = await tryRestoreSession();
+  showApp(restored.ok);
+  if (restored.ok) await loadView('actions');
+  else if (hadToken && restored.reason === 'expired') {
+    document.getElementById('login-error').textContent =
+      'Session expired — please sign in again (demo: owner / demo1234)';
+  } else if (hadToken && restored.reason) {
+    document.getElementById('login-error').textContent =
+      'Could not restore session — ' + restored.reason + '. Try signing in again.';
+  }
 })();
 </script>
 </body>
